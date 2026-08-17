@@ -22,6 +22,7 @@ public interface IApplicationDbContext
     DbSet<Album> Albums { get; }
     DbSet<AlbumPhoto> AlbumPhotos { get; }
     DbSet<KnowledgeChunk> KnowledgeChunks { get; }
+    DbSet<User> Users { get; }
 
     Task<int> SaveChangesAsync(CancellationToken cancellationToken);
 }

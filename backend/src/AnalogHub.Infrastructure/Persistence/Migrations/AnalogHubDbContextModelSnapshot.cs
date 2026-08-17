@@ -460,6 +460,40 @@ namespace AnalogHub.Infrastructure.Persistence.Migrations
                     b.ToTable("Tags", (string)null);
                 });
 
+            modelBuilder.Entity("AnalogHub.Domain.Entities.User", b =>
+                {
+                    b.Property<Guid>("Id")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("uuid");
+
+                    b.Property<DateTimeOffset>("CreatedAtUtc")
+                        .HasColumnType("timestamp with time zone");
+
+                    b.Property<string>("Email")
+                        .IsRequired()
+                        .HasMaxLength(256)
+                        .HasColumnType("character varying(256)");
+
+                    b.Property<string>("PasswordHash")
+                        .IsRequired()
+                        .HasColumnType("text");
+
+                    b.Property<string>("Role")
+                        .IsRequired()
+                        .HasMaxLength(20)
+                        .HasColumnType("character varying(20)");
+
+                    b.Property<DateTimeOffset?>("UpdatedAtUtc")
+                        .HasColumnType("timestamp with time zone");
+
+                    b.HasKey("Id");
+
+                    b.HasIndex("Email")
+                        .IsUnique();
+
+                    b.ToTable("Users");
+                });
+
             modelBuilder.Entity("AnalogHub.Domain.Entities.Gear.CameraBody", b =>
                 {
                     b.HasBaseType("AnalogHub.Domain.Entities.Gear.Gear");
@@ -570,7 +604,7 @@ namespace AnalogHub.Infrastructure.Persistence.Migrations
                         .HasForeignKey("LensId")
                         .OnDelete(DeleteBehavior.SetNull);
 
-                    b.OwnsOne("AnalogHub.Domain.Entities.Photo.Exif#AnalogHub.Domain.ValueObjects.ExifData", "Exif", b1 =>
+                    b.OwnsOne("AnalogHub.Domain.ValueObjects.ExifData", "Exif", b1 =>
                         {
                             b1.Property<Guid>("PhotoId")
                                 .HasColumnType("uuid");
@@ -618,7 +652,7 @@ namespace AnalogHub.Infrastructure.Persistence.Migrations
 
                             b1.HasKey("PhotoId");
 
-                            b1.ToTable("Photos", (string)null);
+                            b1.ToTable("Photos");
 
                             b1.WithOwner()
                                 .HasForeignKey("PhotoId");

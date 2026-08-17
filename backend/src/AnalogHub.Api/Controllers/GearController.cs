@@ -2,6 +2,7 @@ using AnalogHub.Application.GearVault.Commands;
 using AnalogHub.Application.GearVault.Dtos;
 using AnalogHub.Application.GearVault.Queries;
 using MediatR;
+using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Mvc;
 
 namespace AnalogHub.Api.Controllers;
@@ -46,6 +47,7 @@ public sealed class GearController : ControllerBase
     }
 
     [HttpDelete("camera-bodies/{id:guid}")]
+    [Authorize(Roles = "Admin")]
     [ProducesResponseType(StatusCodes.Status204NoContent)]
     public async Task<IActionResult> DeleteCameraBody(Guid id, CancellationToken cancellationToken)
     {
@@ -82,6 +84,7 @@ public sealed class GearController : ControllerBase
     }
 
     [HttpDelete("lenses/{id:guid}")]
+    [Authorize(Roles = "Admin")]
     [ProducesResponseType(StatusCodes.Status204NoContent)]
     public async Task<IActionResult> DeleteLens(Guid id, CancellationToken cancellationToken)
     {
@@ -118,6 +121,7 @@ public sealed class GearController : ControllerBase
     }
 
     [HttpDelete("flashes/{id:guid}")]
+    [Authorize(Roles = "Admin")]
     [ProducesResponseType(StatusCodes.Status204NoContent)]
     public async Task<IActionResult> DeleteFlash(Guid id, CancellationToken cancellationToken)
     {

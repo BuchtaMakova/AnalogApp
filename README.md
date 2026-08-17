@@ -28,6 +28,7 @@ Open `http://localhost:3000`.
 - [Tech stack](#tech-stack)
 - [Architecture](#architecture)
 - [Quick start](#quick-start)
+- [Authentication & authorization](#authentication--authorization)
 - [Testing](#testing)
 - [Engineering challenges & solutions](#engineering-challenges--solutions)
 - [Project structure](#project-structure)
@@ -60,6 +61,8 @@ Open `http://localhost:3000`.
 | Virtualization | TanStack Virtual | Renders only visible grid rows regardless of library size |
 | Testing | xUnit, FluentAssertions, Moq, EF Core InMemory | Fast, database-free handler tests |
 | CI | GitHub Actions | Build + test on every push/PR, backend and frontend in parallel |
+| Auth | JWT bearer (ASP.NET Core `AddJwtBearer`) + ASP.NET Core Identity's PBKDF2 hasher | Stateless auth with zero extra infrastructure; role claims drive `[Authorize(Roles = "Admin")]` |
+| Monitoring | Serilog (structured/JSON logs) + OpenTelemetry → Prometheus `/metrics`, `/health` | Correlation IDs per request, scrapeable metrics, no external collector required for this project's scope |
 
 ## Architecture
 
@@ -215,6 +218,7 @@ docker compose up postgres minio minio-init -d
 
 cd backend
 dotnet user-secrets init --project src/AnalogHub.Api
+dotnet user-secrets set "Jwt:Secret" "$(openssl rand -base64 48)" --project src/AnalogHub.Api  # required — signs auth tokens
 dotnet user-secrets set "Gemini:ApiKey" "AIza..." --project src/AnalogHub.Api   # optional, omit for mock mode
 dotnet run --project src/AnalogHub.Api
 
@@ -236,23 +240,60 @@ so RAG retrieval still demonstrably finds keyword-relevant articles; chat answer
 retrieved context so the response visibly reflects real retrieval, not a static string. See
 [Engineering challenges & solutions](#engineering-challenges--solutions) for how that's built.
 
+## Authentication & authorization
+
+Every API endpoint requires a valid JWT bearer token by default — enforced via an ASP.NET Core
+`FallbackPolicy` (`RequireAuthenticatedUser()`), rather than annotating each controller
+individually. `/api/auth/*`, `/health`, and `/metrics` are the explicit exceptions (`[AllowAnonymous]`
+/ `.AllowAnonymous()`), since the last two are hit by orchestration tooling (Docker healthchecks,
+Prometheus scrapers) that never has a token.
+
+```bash
+curl -X POST http://localhost:8080/api/auth/register \
+  -H "Content-Type: application/json" \
+  -d '{"email":"you@example.com","password":"at-least-8-chars"}'
+# → { "token": "eyJ...", "expiresAtUtc": "...", "userId": "...", "email": "...", "role": "Admin" }
+```
+
+- **Passwords** are hashed with ASP.NET Core Identity's `PasswordHasher<T>` (PBKDF2) — pulled in as
+  a standalone package, not the full Identity stores/UI, since this app has one custom `User`
+  entity and needs only the hashing algorithm.
+- **Bootstrap admin.** The very first account to register becomes `Admin`; every account after that
+  defaults to `User`. This is a single-tenant portfolio-app convenience — real multi-tenant
+  deployments would seed or promote admins explicitly instead.
+- **Role-gated destructive operations.** Deleting a camera body, lens, flash, film roll, or album
+  requires the `Admin` role (`[Authorize(Roles = "Admin")]`); every other authenticated action
+  (including AI critique and RAG chat) is available to any signed-in `User`.
+- **Frontend** stores the JWT in `localStorage`, attaches it via an axios request interceptor, and a
+  response interceptor clears it and redirects to `/login` on any `401` (except from the login/register
+  calls themselves, where a `401` just means "wrong password").
+- **Local dev secret.** The HMAC signing key lives in `dotnet user-secrets` (`Jwt:Secret`), never in
+  a committed `appsettings.*.json`; `docker compose up` uses a documented demo default
+  (`JWT_SECRET` env var to override) the same way it does for the Postgres/MinIO demo passwords.
+
 ## Testing
 
 ```bash
-cd backend
-dotnet test AnalogHub.sln
+cd backend && dotnet test AnalogHub.sln
+cd frontend && npm run test:run
 ```
 
-23 tests covering `RegisterPhotoCommandHandler`, `AnalyzePhotoCommandHandler`,
-`AskKnowledgeBaseCommandHandler`, and `TextChunker` — run against an EF Core InMemory database with
-mocked service ports (`IVisionAnalysisService`, `IFileStorageService`, `ISender`), no real database
-or network calls. `SearchKnowledgeChunksQueryHandler`'s actual pgvector cosine query is deliberately
-*not* unit tested — only Postgres can translate `CosineDistance`, so that's an integration-test
-concern; `AskKnowledgeBaseCommandHandler` covers its own logic (prompt grounding, citation mapping)
-against a mocked retrieval result instead.
+**Backend — 73 tests** (xUnit + FluentAssertions + Moq) covering every CQRS handler in the
+Gear Vault, Roll Manager, Album, Photo, and Auth modules, plus the RAG assistant's grounding/citation
+logic and the `TextChunker`. Handlers run against an EF Core InMemory database with mocked service
+ports (`IVisionAnalysisService`, `IFileStorageService`, `IPasswordHasher`, `IJwtTokenGenerator`,
+`ISender`) — no real database or network calls. `SearchKnowledgeChunksQueryHandler`'s actual pgvector
+cosine query is deliberately *not* unit tested — only Postgres can translate `CosineDistance`, so
+that's an integration-test concern; `AskKnowledgeBaseCommandHandler` covers its own logic (prompt
+grounding, citation mapping) against a mocked retrieval result instead.
 
-GitHub Actions runs the same `dotnet build` + `dotnet test`, plus `tsc -b` + `npm run build` for the
-frontend, on every push and PR — see [`.github/workflows/ci.yml`](.github/workflows/ci.yml).
+**Frontend — Vitest + React Testing Library**, covering the pure formatting/storage utilities
+(`lib/format.ts`, `lib/authStorage.ts`) and interactive UI primitives (`StarRating`, `Badge`) —
+component behavior (click-to-rate, disabled state, tone classes, token persistence), not snapshot
+tests.
+
+GitHub Actions runs `dotnet build` + `dotnet test` and `tsc -b` + `vitest run` + `npm run build` for
+the frontend, on every push and PR — see [`.github/workflows/ci.yml`](.github/workflows/ci.yml).
 
 ## Engineering challenges & solutions
 
@@ -325,17 +366,23 @@ docker-compose.yml
 
 ## API overview
 
-| Endpoint | Purpose |
-|---|---|
-| `POST /api/photos/upload-url` → `POST /api/photos` | Two-step upload: presigned URL, then register (enqueues background processing) |
-| `GET /api/photos` | Paginated, filterable listing (film roll, camera, lens, tag, rating) |
-| `POST /api/photos/{id}/analyze` | Runs AI vision critique, persists it, applies suggested tags |
-| `PUT /api/photos/{id}/rating`, `POST/DELETE /api/photos/{id}/tags` | Organize: rating, manual tags |
-| `GET/POST/PUT/DELETE /api/gear/{camera-bodies,lenses,flashes}` | Gear Vault CRUD |
-| `GET/POST/PUT/DELETE /api/film-rolls` | Roll lifecycle management |
-| `GET/POST/PUT/DELETE /api/albums`, `POST/DELETE /api/albums/{id}/photos/{photoId}` | Album curation |
-| `POST /api/knowledge-base/documents` | Ingest an article (chunk + embed) |
-| `GET /api/knowledge-base/search` | Raw cosine-similarity search, no LLM |
-| `POST /api/knowledge-base/ask` | RAG chat: retrieval + grounded answer + citations |
+| Endpoint | Purpose | Access |
+|---|---|---|
+| `POST /api/auth/register`, `POST /api/auth/login` | Create an account / exchange credentials for a JWT | Anonymous |
+| `POST /api/photos/upload-url` → `POST /api/photos` | Two-step upload: presigned URL, then register (enqueues background processing) | Authenticated |
+| `GET /api/photos` | Paginated, filterable listing (film roll, camera, lens, tag, rating) | Authenticated |
+| `POST /api/photos/{id}/analyze` | Runs AI vision critique, persists it, applies suggested tags | Authenticated |
+| `PUT /api/photos/{id}/rating`, `POST/DELETE /api/photos/{id}/tags` | Organize: rating, manual tags | Authenticated |
+| `GET/POST/PUT /api/gear/{camera-bodies,lenses,flashes}` | Gear Vault CRUD | Authenticated |
+| `DELETE /api/gear/{camera-bodies,lenses,flashes}/{id}` | Remove gear | **Admin** |
+| `GET/POST/PUT /api/film-rolls` | Roll lifecycle management | Authenticated |
+| `DELETE /api/film-rolls/{id}` | Remove a film roll | **Admin** |
+| `GET/POST/PUT /api/albums`, `POST/DELETE /api/albums/{id}/photos/{photoId}` | Album curation | Authenticated |
+| `DELETE /api/albums/{id}` | Remove an album | **Admin** |
+| `POST /api/knowledge-base/documents` | Ingest an article (chunk + embed) | Authenticated |
+| `GET /api/knowledge-base/search` | Raw cosine-similarity search, no LLM | Authenticated |
+| `POST /api/knowledge-base/ask` | RAG chat: retrieval + grounded answer + citations | Authenticated |
+| `GET /health`, `GET /metrics` | Liveness probe, Prometheus scrape target | Anonymous |
 
-Full request/response contracts are in Swagger at `/swagger` (Development environment).
+Full request/response contracts are in Swagger at `/swagger` (Development environment) — click
+**Authorize** and paste a JWT from `/api/auth/login` to try protected endpoints interactively.
