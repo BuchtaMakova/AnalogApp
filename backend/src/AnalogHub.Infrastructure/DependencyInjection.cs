@@ -1,6 +1,7 @@
 using AnalogHub.Application.Common.Interfaces;
 using AnalogHub.Infrastructure.AI.Gemini;
 using AnalogHub.Infrastructure.AI.Mock;
+using AnalogHub.Infrastructure.Auth;
 using AnalogHub.Infrastructure.BackgroundJobs;
 using AnalogHub.Infrastructure.Common;
 using AnalogHub.Infrastructure.Persistence;
@@ -9,9 +10,12 @@ using AnalogHub.Infrastructure.Storage;
 using Amazon.S3;
 using Hangfire;
 using Hangfire.PostgreSql;
+using Microsoft.AspNetCore.Authentication.JwtBearer;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.Configuration;
 using Microsoft.Extensions.DependencyInjection;
+using Microsoft.IdentityModel.Tokens;
+using System.Text;
 
 namespace AnalogHub.Infrastructure;
 
@@ -62,6 +66,37 @@ public static class DependencyInjection
         services.AddHangfireServer();
         services.AddScoped<IPhotoProcessingJobService, HangfirePhotoProcessingJobService>();
         services.AddScoped<PhotoProcessingJob>();
+
+        services.AddSingleton<IPasswordHasher, PasswordHasher>();
+        services.AddSingleton<IJwtTokenGenerator, JwtTokenGenerator>();
+
+        services.Configure<JwtOptions>(configuration.GetSection(JwtOptions.SectionName));
+        var jwtOptions = configuration.GetSection(JwtOptions.SectionName).Get<JwtOptions>()
+            ?? throw new InvalidOperationException("Jwt configuration section is missing.");
+        if (string.IsNullOrWhiteSpace(jwtOptions.Secret))
+        {
+            // Fail fast rather than silently signing tokens with an empty key. Set via
+            // `dotnet user-secrets set "Jwt:Secret" "..."` locally; docker-compose.yml supplies a
+            // demo default through the JWT_SECRET env var.
+            throw new InvalidOperationException(
+                "Jwt:Secret is not configured. Run: dotnet user-secrets set \"Jwt:Secret\" \"<random-32+-char-value>\" --project src/AnalogHub.Api");
+        }
+
+        services.AddAuthentication(JwtBearerDefaults.AuthenticationScheme)
+            .AddJwtBearer(options =>
+            {
+                options.TokenValidationParameters = new TokenValidationParameters
+                {
+                    ValidateIssuer = true,
+                    ValidIssuer = jwtOptions.Issuer,
+                    ValidateAudience = true,
+                    ValidAudience = jwtOptions.Audience,
+                    ValidateIssuerSigningKey = true,
+                    IssuerSigningKey = new SymmetricSecurityKey(Encoding.UTF8.GetBytes(jwtOptions.Secret)),
+                    ValidateLifetime = true,
+                    ClockSkew = TimeSpan.FromMinutes(1)
+                };
+            });
 
         services.Configure<GeminiOptions>(configuration.GetSection(GeminiOptions.SectionName));
 

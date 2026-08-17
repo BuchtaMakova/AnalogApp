@@ -87,6 +87,12 @@ services:
       Gemini__VisionModel: gemini-3.6-flash
       Gemini__ChatModel: gemini-3.6-flash
       Gemini__EmbeddingModel: gemini-embedding-001
+      # Demo default so `docker compose up` needs zero config, same as the DB/MinIO passwords above.
+      # Override with a real random value (JWT_SECRET env var) for any non-local deployment.
+      Jwt__Secret: ${JWT_SECRET:-analoghub-demo-jwt-signing-secret-change-me-for-real-deployments}
+      Jwt__Issuer: AnalogHub
+      Jwt__Audience: AnalogHub
+      Jwt__ExpiryMinutes: 120
     ports:
       - "8080:8080"
 

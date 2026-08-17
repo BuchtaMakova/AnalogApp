@@ -1,5 +1,6 @@
 import { NavLink } from 'react-router-dom'
-import { Aperture, Camera, Images, Library } from 'lucide-react'
+import { Aperture, Camera, Images, Library, LogOut } from 'lucide-react'
+import { useAuth } from '@/features/auth/AuthContext'
 
 const navItems = [
   { to: '/', label: 'Library', icon: Images, end: true },
@@ -9,6 +10,8 @@ const navItems = [
 ]
 
 export function Sidebar() {
+  const { user, logout } = useAuth()
+
   return (
     <nav className="flex w-56 shrink-0 flex-col gap-1 border-r border-neutral-800 bg-neutral-900/50 p-4">
       <h1 className="mb-4 px-2 text-sm font-semibold tracking-wide text-neutral-400 uppercase">
@@ -31,6 +34,18 @@ export function Sidebar() {
           {label}
         </NavLink>
       ))}
+
+      <div className="mt-auto flex flex-col gap-1 border-t border-neutral-800 pt-3">
+        {user && <p className="truncate px-2 text-xs text-neutral-500">{user.email}</p>}
+        <button
+          type="button"
+          onClick={logout}
+          className="flex items-center gap-3 rounded-lg px-3 py-2 text-sm font-medium text-neutral-400 transition-colors hover:bg-neutral-800/60 hover:text-neutral-200"
+        >
+          <LogOut size={18} />
+          Log out
+        </button>
+      </div>
     </nav>
   )
 }

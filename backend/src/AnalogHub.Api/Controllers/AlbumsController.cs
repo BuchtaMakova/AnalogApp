@@ -2,6 +2,7 @@ using AnalogHub.Application.Albums.Commands;
 using AnalogHub.Application.Albums.Dtos;
 using AnalogHub.Application.Albums.Queries;
 using MediatR;
+using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Mvc;
 
 namespace AnalogHub.Api.Controllers;
@@ -43,6 +44,7 @@ public sealed class AlbumsController : ControllerBase
     }
 
     [HttpDelete("{id:guid}")]
+    [Authorize(Roles = "Admin")]
     [ProducesResponseType(StatusCodes.Status204NoContent)]
     public async Task<IActionResult> DeleteAlbum(Guid id, CancellationToken cancellationToken)
     {
