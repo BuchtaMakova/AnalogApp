@@ -1,0 +1,107 @@
+services:
+  postgres:
+    image: pgvector/pgvector:pg16
+    container_name: analog_postgres
+    restart: always
+    environment:
+      POSTGRES_USER: postgres
+      POSTGRES_PASSWORD: postgrespassword
+      POSTGRES_DB: analoghub_db
+    ports:
+      - "5433:5432"
+    volumes:
+      - postgres_data:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U postgres"]
+      interval: 5s
+      timeout: 5s
+      retries: 10
+
+  # S3-compatible object storage, so photo upload works with zero external accounts. Swap
+  # Storage__ServiceUrl for a real Cloudflare R2 / AWS S3 endpoint in an actual production deploy.
+  minio:
+    image: minio/minio:latest
+    container_name: analog_minio
+    restart: always
+    environment:
+      MINIO_ROOT_USER: minioadmin
+      MINIO_ROOT_PASSWORD: minioadmin123
+    command: server /data --console-address ":9001"
+    ports:
+      - "9000:9000" # S3 API
+      - "9001:9001" # Web console
+    volumes:
+      - minio_data:/data
+    healthcheck:
+      test: ["CMD", "mc", "ready", "local"]
+      interval: 5s
+      timeout: 5s
+      retries: 10
+
+  # One-shot: creates the photos bucket, then exits. Re-running docker compose up is a no-op if it already exists.
+  minio-init:
+    image: minio/mc:latest
+    container_name: analog_minio_init
+    depends_on:
+      minio:
+        condition: service_healthy
+    entrypoint: >
+      /bin/sh -c "
+      mc alias set local http://minio:9000 minioadmin minioadmin123 &&
+      (mc mb local/analoghub-photos || true) &&
+      exit 0
+      "
+
+  api:
+    build:
+      context: ./backend
+      dockerfile: Dockerfile
+    container_name: analog_api
+    restart: always
+    depends_on:
+      postgres:
+        condition: service_healthy
+      minio:
+        condition: service_healthy
+      minio-init:
+        condition: service_completed_successfully
+    extra_hosts:
+      - "host.docker.internal:host-gateway" # no-op on Docker Desktop, required on Linux
+    environment:
+      ASPNETCORE_ENVIRONMENT: Production
+      ASPNETCORE_URLS: http://+:8080
+      ConnectionStrings__AnalogHubDb: "Host=postgres;Port=5432;Database=analoghub_db;Username=postgres;Password=postgrespassword"
+      # MinIO is reached via the host-published port, not the internal service name: presigned
+      # URLs are signed with this host, and the browser (outside the Docker network) must be able
+      # to resolve it too. See README.md "Storage networking caveat".
+      Storage__BucketName: analoghub-photos
+      Storage__Region: auto
+      Storage__ServiceUrl: "http://host.docker.internal:9000"
+      Storage__AccessKey: minioadmin
+      Storage__SecretKey: minioadmin123
+      Storage__PublicBaseUrl: ""
+      # Demo mode by default — zero-config AI on a fresh clone, no API key needed. Set
+      # USE_MOCK_AI=false and GEMINI_API_KEY=... for real Gemini vision critique / RAG chat.
+      UseMockAi: ${USE_MOCK_AI:-true}
+      Gemini__ApiKey: ${GEMINI_API_KEY:-}
+      Gemini__VisionModel: gemini-3.6-flash
+      Gemini__ChatModel: gemini-3.6-flash
+      Gemini__EmbeddingModel: gemini-embedding-001
+    ports:
+      - "8080:8080"
+
+  frontend:
+    build:
+      context: ./frontend
+      dockerfile: Dockerfile
+    container_name: analog_frontend
+    restart: always
+    depends_on:
+      api:
+        condition: service_healthy
+    ports:
+      - "3000:80"
+
+volumes:
+  postgres_data:
+  minio_data:

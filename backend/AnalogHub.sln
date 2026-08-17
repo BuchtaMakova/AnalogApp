@@ -1,0 +1,57 @@
+﻿
+Microsoft Visual Studio Solution File, Format Version 12.00
+# Visual Studio Version 17
+VisualStudioVersion = 17.0.31903.59
+MinimumVisualStudioVersion = 10.0.40219.1
+Project("{2150E333-8FDC-42A3-9474-1A3956D46DE8}") = "src", "src", "{82DB3C22-B88E-467C-B2DB-5F30AB9DFF94}"
+EndProject
+Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "AnalogHub.Domain", "src\AnalogHub.Domain\AnalogHub.Domain.csproj", "{F778B1B8-7E12-438C-86D5-90691F0882F0}"
+EndProject
+Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "AnalogHub.Application", "src\AnalogHub.Application\AnalogHub.Application.csproj", "{3B97FC7C-78B6-489B-B9AD-70D85B26E9DD}"
+EndProject
+Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "AnalogHub.Infrastructure", "src\AnalogHub.Infrastructure\AnalogHub.Infrastructure.csproj", "{3736EA8B-E1D5-40AB-B20F-0E38DA5D955F}"
+EndProject
+Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "AnalogHub.Api", "src\AnalogHub.Api\AnalogHub.Api.csproj", "{C304929C-A9A9-40BD-AB34-4931EEC95CD6}"
+EndProject
+Project("{2150E333-8FDC-42A3-9474-1A3956D46DE8}") = "tests", "tests", "{2F4482A0-7E9B-4B54-BA26-BB6C4881C568}"
+EndProject
+Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "AnalogHub.Tests", "tests\AnalogHub.Tests\AnalogHub.Tests.csproj", "{97665A7D-BB1A-420F-84AB-F8DFA9FA22FD}"
+EndProject
+Global
+	GlobalSection(SolutionConfigurationPlatforms) = preSolution
+		Debug|Any CPU = Debug|Any CPU
+		Release|Any CPU = Release|Any CPU
+	EndGlobalSection
+	GlobalSection(SolutionProperties) = preSolution
+		HideSolutionNode = FALSE
+	EndGlobalSection
+	GlobalSection(ProjectConfigurationPlatforms) = postSolution
+		{F778B1B8-7E12-438C-86D5-90691F0882F0}.Debug|Any CPU.ActiveCfg = Debug|Any CPU
+		{F778B1B8-7E12-438C-86D5-90691F0882F0}.Debug|Any CPU.Build.0 = Debug|Any CPU
+		{F778B1B8-7E12-438C-86D5-90691F0882F0}.Release|Any CPU.ActiveCfg = Release|Any CPU
+		{F778B1B8-7E12-438C-86D5-90691F0882F0}.Release|Any CPU.Build.0 = Release|Any CPU
+		{3B97FC7C-78B6-489B-B9AD-70D85B26E9DD}.Debug|Any CPU.ActiveCfg = Debug|Any CPU
+		{3B97FC7C-78B6-489B-B9AD-70D85B26E9DD}.Debug|Any CPU.Build.0 = Debug|Any CPU
+		{3B97FC7C-78B6-489B-B9AD-70D85B26E9DD}.Release|Any CPU.ActiveCfg = Release|Any CPU
+		{3B97FC7C-78B6-489B-B9AD-70D85B26E9DD}.Release|Any CPU.Build.0 = Release|Any CPU
+		{3736EA8B-E1D5-40AB-B20F-0E38DA5D955F}.Debug|Any CPU.ActiveCfg = Debug|Any CPU
+		{3736EA8B-E1D5-40AB-B20F-0E38DA5D955F}.Debug|Any CPU.Build.0 = Debug|Any CPU
+		{3736EA8B-E1D5-40AB-B20F-0E38DA5D955F}.Release|Any CPU.ActiveCfg = Release|Any CPU
+		{3736EA8B-E1D5-40AB-B20F-0E38DA5D955F}.Release|Any CPU.Build.0 = Release|Any CPU
+		{C304929C-A9A9-40BD-AB34-4931EEC95CD6}.Debug|Any CPU.ActiveCfg = Debug|Any CPU
+		{C304929C-A9A9-40BD-AB34-4931EEC95CD6}.Debug|Any CPU.Build.0 = Debug|Any CPU
+		{C304929C-A9A9-40BD-AB34-4931EEC95CD6}.Release|Any CPU.ActiveCfg = Release|Any CPU
+		{C304929C-A9A9-40BD-AB34-4931EEC95CD6}.Release|Any CPU.Build.0 = Release|Any CPU
+		{97665A7D-BB1A-420F-84AB-F8DFA9FA22FD}.Debug|Any CPU.ActiveCfg = Debug|Any CPU
+		{97665A7D-BB1A-420F-84AB-F8DFA9FA22FD}.Debug|Any CPU.Build.0 = Debug|Any CPU
+		{97665A7D-BB1A-420F-84AB-F8DFA9FA22FD}.Release|Any CPU.ActiveCfg = Release|Any CPU
+		{97665A7D-BB1A-420F-84AB-F8DFA9FA22FD}.Release|Any CPU.Build.0 = Release|Any CPU
+	EndGlobalSection
+	GlobalSection(NestedProjects) = preSolution
+		{F778B1B8-7E12-438C-86D5-90691F0882F0} = {82DB3C22-B88E-467C-B2DB-5F30AB9DFF94}
+		{3B97FC7C-78B6-489B-B9AD-70D85B26E9DD} = {82DB3C22-B88E-467C-B2DB-5F30AB9DFF94}
+		{3736EA8B-E1D5-40AB-B20F-0E38DA5D955F} = {82DB3C22-B88E-467C-B2DB-5F30AB9DFF94}
+		{C304929C-A9A9-40BD-AB34-4931EEC95CD6} = {82DB3C22-B88E-467C-B2DB-5F30AB9DFF94}
+		{97665A7D-BB1A-420F-84AB-F8DFA9FA22FD} = {2F4482A0-7E9B-4B54-BA26-BB6C4881C568}
+	EndGlobalSection
+EndGlobal

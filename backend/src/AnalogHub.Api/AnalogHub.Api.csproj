@@ -1,0 +1,21 @@
+﻿<Project Sdk="Microsoft.NET.Sdk.Web">
+
+  <PropertyGroup>
+    <TargetFramework>net8.0</TargetFramework>
+    <Nullable>enable</Nullable>
+    <ImplicitUsings>enable</ImplicitUsings>
+    <UserSecretsId>3b456623-dafd-453f-a3a4-ffc7ec4ce73e</UserSecretsId>
+  </PropertyGroup>
+
+  <ItemGroup>
+    <PackageReference Include="MediatR" Version="12.4.1" />
+    <PackageReference Include="Swashbuckle.AspNetCore" Version="6.9.0" />
+  </ItemGroup>
+
+  <ItemGroup>
+    <ProjectReference Include="..\AnalogHub.Application\AnalogHub.Application.csproj" />
+    <ProjectReference Include="..\AnalogHub.Infrastructure\AnalogHub.Infrastructure.csproj" />
+    <ProjectReference Include="..\AnalogHub.Domain\AnalogHub.Domain.csproj" />
+  </ItemGroup>
+
+</Project>
