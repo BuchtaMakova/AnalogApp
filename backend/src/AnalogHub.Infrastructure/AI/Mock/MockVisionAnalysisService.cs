@@ -71,7 +71,12 @@ public sealed class MockVisionAnalysisService : IVisionAnalysisService
         VisionAnalysisContext context,
         CancellationToken cancellationToken)
     {
-        var index = Math.Abs(imageUrl.GetHashCode(StringComparison.Ordinal)) % Templates.Length;
+        // imageUrl is a freshly presigned URL — its signature/expiry query string differs on every
+        // call even for the same photo, so hashing the full URL would pick a different template each
+        // time despite the class doc's "same photo always gets the same result" promise. Hash only
+        // the stable object path instead.
+        var stablePath = imageUrl.Split('?', 2)[0];
+        var index = Math.Abs(stablePath.GetHashCode(StringComparison.Ordinal)) % Templates.Length;
         return Task.FromResult(Templates[index]);
     }
 }

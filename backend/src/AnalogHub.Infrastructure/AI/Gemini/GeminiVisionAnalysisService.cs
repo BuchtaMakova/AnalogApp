@@ -43,7 +43,10 @@ public sealed class GeminiVisionAnalysisService : IVisionAnalysisService
                 ])
             ],
             SystemInstruction: new GeminiContent(null, [new GeminiPart(Text: BuildSystemPrompt())]),
-            GenerationConfig: new GeminiGenerationConfig(ResponseMimeType: "application/json", ResponseSchema: CritiqueSchema));
+            // Low, not zero: a critique should read the same photo consistently across re-runs
+            // (same score, same named details) without becoming a canned, word-for-word repeat.
+            GenerationConfig: new GeminiGenerationConfig(
+                ResponseMimeType: "application/json", ResponseSchema: CritiqueSchema, Temperature: 0.2));
 
         var rawJson = await _client.GenerateContentAsync(_model, request, cancellationToken);
 

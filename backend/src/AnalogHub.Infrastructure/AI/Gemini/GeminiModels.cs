@@ -14,7 +14,10 @@ public sealed record GeminiInlineData(string MimeType, string Data);
 
 public sealed record GeminiContent(string? Role, IReadOnlyList<GeminiPart> Parts);
 
-public sealed record GeminiGenerationConfig(string? ResponseMimeType = null, JsonElement? ResponseSchema = null);
+public sealed record GeminiGenerationConfig(
+    string? ResponseMimeType = null,
+    JsonElement? ResponseSchema = null,
+    double? Temperature = null);
 
 public sealed record GeminiGenerateContentRequest(
     IReadOnlyList<GeminiContent> Contents,
