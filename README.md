@@ -1,6 +1,6 @@
 # Smart Analog Photo Hub & AI Darkroom Assistant
 
-[![CI](https://github.com/yourusername/analog-photo-hub/actions/workflows/ci.yml/badge.svg)](https://github.com/yourusername/analog-photo-hub/actions/workflows/ci.yml)
+[![CI](https://github.com/BuchtaMakova/AnalogApp/actions/workflows/ci.yml/badge.svg)](https://github.com/BuchtaMakova/AnalogApp/actions/workflows/ci.yml)
 [![.NET 8](https://img.shields.io/badge/.NET-8-512BD4)](https://dotnet.microsoft.com/)
 [![React 19](https://img.shields.io/badge/React-19-61DAFB)](https://react.dev/)
 [![PostgreSQL + pgvector](https://img.shields.io/badge/PostgreSQL-pgvector-336791)](https://github.com/pgvector/pgvector)
@@ -14,7 +14,7 @@
 including vision critique and RAG chat, explorable straight from a fresh clone:
 
 ```bash
-git clone https://github.com/yourusername/analog-photo-hub.git && cd analog-photo-hub
+git clone https://github.com/BuchtaMakova/AnalogApp.git && cd AnalogApp
 docker compose up --build
 ```
 
@@ -38,7 +38,9 @@ Open `http://localhost:3000`.
 
 | Module | Capabilities |
 |---|---|
-| **Photo Library** | Virtualized grid (thousands of photos, smooth scroll), BlurHash placeholders, drag-and-drop upload with per-file progress, filter by roll/camera/lens/tag/rating |
+| **Photo Library** | Virtualized grid (thousands of photos, smooth scroll), BlurHash placeholders, drag-and-drop upload with per-file progress, filter by roll/camera/lens/tag/rating, collapsible per-roll sections |
+| **Photo Detail (Lightbox)** | Keyboard/click prev-next navigation that seamlessly paginates past the currently loaded page, non-destructive 90° rotation for sideways scans, one-click download with a friendly filename |
+| **Bulk actions** | Multi-select photos for delete or download — "download separately" (one presigned link per photo) or "download as ZIP" (bundled server-side) |
 | **AI Vision Critique** | Sends each photo to a multimodal LLM (Gemini) with a strict JSON schema; returns composition, lighting, posing (portraits only) and concrete recommendations, then auto-tags the photo |
 | **Knowledge Base & RAG Chat** | Ingests technique articles (chunked + embedded), answers free-text questions with pgvector cosine search and numbered source citations |
 | **Gear Vault** | Camera bodies, lenses, flashes — full CRUD, linked to film rolls and individual frames |
@@ -61,7 +63,7 @@ Open `http://localhost:3000`.
 | Virtualization | TanStack Virtual | Renders only visible grid rows regardless of library size |
 | Testing | xUnit, FluentAssertions, Moq, EF Core InMemory | Fast, database-free handler tests |
 | CI | GitHub Actions | Build + test on every push/PR, backend and frontend in parallel |
-| Auth | JWT bearer (ASP.NET Core `AddJwtBearer`) + ASP.NET Core Identity's PBKDF2 hasher | Stateless auth with zero extra infrastructure; role claims drive `[Authorize(Roles = "Admin")]` |
+| Auth | JWT bearer (ASP.NET Core `AddJwtBearer`) + ASP.NET Core Identity's PBKDF2 hasher | Stateless auth with zero extra infrastructure; ownership (`UserId` on every row), not role claims, is the real authorization boundary |
 | Monitoring | Serilog (structured/JSON logs) + OpenTelemetry → Prometheus `/metrics`, `/health` | Correlation IDs per request, scrapeable metrics, no external collector required for this project's scope |
 
 ## Architecture
@@ -240,6 +242,51 @@ so RAG retrieval still demonstrably finds keyword-relevant articles; chat answer
 retrieved context so the response visibly reflects real retrieval, not a static string. See
 [Engineering challenges & solutions](#engineering-challenges--solutions) for how that's built.
 
+### Connecting real object storage
+
+The local MinIO container is fine for exploring the app, but photos vanish if its volume is wiped
+and it's only reachable on your machine. To point the app at a real bucket instead (Cloudflare R2,
+AWS S3, or any S3-compatible provider) — shared storage that works the same way whether it's you or
+several people using the app:
+
+1. **Create a bucket** and an S3-compatible access key for it (Cloudflare dashboard → R2 → Create
+   bucket, then Manage API tokens → create an S3 API token scoped to that bucket; for AWS, an S3
+   bucket + an IAM user/key with `s3:GetObject`/`PutObject`/`DeleteObject` on it).
+2. **Configure CORS on the bucket** — without this, every upload and every thumbnail/preview image
+   fails in the browser with a CORS error, since the bucket's origin differs from the app's. Apply
+   this policy (via the R2/S3 dashboard's CORS settings, or `aws s3api put-bucket-cors` /
+   `wrangler r2 bucket cors`), replacing the origin with wherever the frontend is actually served
+   from — add more entries to `AllowedOrigins` for additional domains (e.g. once you deploy
+   somewhere other than `localhost`):
+   ```json
+   [
+     {
+       "AllowedOrigins": ["http://localhost:3000"],
+       "AllowedMethods": ["GET", "PUT", "HEAD"],
+       "AllowedHeaders": ["*"],
+       "ExposeHeaders": ["ETag"],
+       "MaxAgeSeconds": 3600
+     }
+   ]
+   ```
+3. **Set these as environment variables** in your own shell before `docker compose up --build`
+   (never commit real credentials — this mirrors how `GEMINI_API_KEY` and `JWT_SECRET` work):
+   ```powershell
+   $env:STORAGE_SERVICE_URL = "https://<account-id>.r2.cloudflarestorage.com"  # R2; omit for AWS S3
+   $env:STORAGE_BUCKET_NAME = "your-bucket-name"
+   $env:STORAGE_ACCESS_KEY = "..."
+   $env:STORAGE_SECRET_KEY = "..."
+   $env:STORAGE_USE_SIGV4 = "true"          # required — R2 and AWS S3 only accept SigV4
+   $env:STORAGE_PUBLIC_SERVICE_URL = ""     # empty — the bucket endpoint is already public
+   docker compose up --build -d
+   ```
+   `Storage__UseSignatureVersion4` matters: MinIO accepts the older SigV2 the app defaults to, but
+   R2 and real AWS S3 reject it outright. Leaving `STORAGE_PUBLIC_SERVICE_URL` unset would instead
+   default to the local MinIO override (`http://localhost:9000`) and break every presigned URL — see
+   `S3StorageOptions.UseSignatureVersion4` and `.PublicServiceUrl` for why each one exists.
+4. The local `minio`/`minio-init` containers still start (harmless if unused) — they're not worth
+   conditionally disabling for a single config swap.
+
 ## Authentication & authorization
 
 Every API endpoint requires a valid JWT bearer token by default — enforced via an ASP.NET Core
@@ -259,11 +306,15 @@ curl -X POST http://localhost:8080/api/auth/register \
   a standalone package, not the full Identity stores/UI, since this app has one custom `User`
   entity and needs only the hashing algorithm.
 - **Bootstrap admin.** The very first account to register becomes `Admin`; every account after that
-  defaults to `User`. This is a single-tenant portfolio-app convenience — real multi-tenant
-  deployments would seed or promote admins explicitly instead.
-- **Role-gated destructive operations.** Deleting a camera body, lens, flash, film roll, or album
-  requires the `Admin` role (`[Authorize(Roles = "Admin")]`); every other authenticated action
-  (including AI critique and RAG chat) is available to any signed-in `User`.
+  defaults to `User`. The demo gear/film-roll seed data is assigned to that first account too (see
+  below), so whoever sets the app up first gets a populated library to explore immediately.
+- **Every user has their own private library — never a shared one.** Photos, film rolls, gear, and
+  albums all carry a `UserId`; every query and command is scoped to the caller's own id via
+  `ICurrentUserService` (reads the JWT's subject claim). Reaching for someone else's photo — by ID,
+  by putting it in your album, by linking a film roll to their camera body — returns a plain 404,
+  the same as if it didn't exist, rather than a 403 that would confirm it does. Tags and the
+  Knowledge Base stay shared/global across all users, since they're vocabulary and reference
+  material, not personal content.
 - **Frontend** stores the JWT in `localStorage`, attaches it via an axios request interceptor, and a
   response interceptor clears it and redirects to `/login` on any `401` (except from the login/register
   calls themselves, where a `401` just means "wrong password").
@@ -278,19 +329,22 @@ cd backend && dotnet test AnalogHub.sln
 cd frontend && npm run test:run
 ```
 
-**Backend — 73 tests** (xUnit + FluentAssertions + Moq) covering every CQRS handler in the
+**Backend — 99 tests** (xUnit + FluentAssertions + Moq) covering every CQRS handler in the
 Gear Vault, Roll Manager, Album, Photo, and Auth modules, plus the RAG assistant's grounding/citation
 logic and the `TextChunker`. Handlers run against an EF Core InMemory database with mocked service
 ports (`IVisionAnalysisService`, `IFileStorageService`, `IPasswordHasher`, `IJwtTokenGenerator`,
 `ISender`) — no real database or network calls. `SearchKnowledgeChunksQueryHandler`'s actual pgvector
 cosine query is deliberately *not* unit tested — only Postgres can translate `CosineDistance`, so
 that's an integration-test concern; `AskKnowledgeBaseCommandHandler` covers its own logic (prompt
-grounding, citation mapping) against a mocked retrieval result instead.
+grounding, citation mapping) against a mocked retrieval result instead. A dedicated suite
+(`ValidationPipelineTests`) exercises the real DI-wired MediatR pipeline rather than calling handlers
+directly, specifically to catch pipeline-registration regressions like the one described below —
+handler-level tests alone would never have caught it, since they bypass the pipeline entirely.
 
 **Frontend — Vitest + React Testing Library**, covering the pure formatting/storage utilities
-(`lib/format.ts`, `lib/authStorage.ts`) and interactive UI primitives (`StarRating`, `Badge`) —
-component behavior (click-to-rate, disabled state, tone classes, token persistence), not snapshot
-tests.
+(`lib/format.ts`, `lib/authStorage.ts`) and interactive UI primitives (`StarRating`, `Badge`,
+`PhotoCard`) — component behavior (click-to-rate, disabled state, tone classes, token persistence,
+click-to-select vs. open-lightbox), not snapshot tests.
 
 GitHub Actions runs `dotnet build` + `dotnet test` and `tsc -b` + `vitest run` + `npm run build` for
 the frontend, on every push and PR — see [`.github/workflows/ci.yml`](.github/workflows/ci.yml).
@@ -332,6 +386,23 @@ incompatibilities within a single working session:
   `"format": "ThirtyFiveMm"`) because `AddControllers()` doesn't add `JsonStringEnumConverter` by
   default — invisible until a real frontend rendered a literal `35` where `35mm` was expected.
 
+**A validation pipeline that silently validated nothing — for every void command.** `ValidationBehavior<TRequest, TResponse>`
+was constrained to `where TRequest : IRequest<TResponse>`, which looks like the obviously-correct
+constraint for a MediatR pipeline behavior. It compiled, it worked for every command with a return
+value (`CreateAlbumCommand : IRequest<AlbumDto>`, `RegisterCommand : IRequest<AuthResultDto>`), and
+FluentValidation errors came back as clean `400`s in exactly those cases — so nothing looked wrong.
+But plain void commands (`UpdatePhotoRatingCommand : IRequest`, no generic) don't implement
+`IRequest<Unit>` in MediatR 12 the way they did in older versions, so the DI container could never
+close that generic for `TResponse = Unit`, silently produced zero pipeline behaviors, and invalid
+input (a rating of 9, a rotation of 45°) sailed straight past validation into the database's check
+constraint as a raw `500` instead of a `400`. Found by comparing a working `IRequest<T>` case against
+a broken void one side by side, confirmed with a one-line diagnostic
+(`serviceProvider.GetServices<IPipelineBehavior<...>>().Count()` returning `0`), fixed by relaxing the
+constraint to `where TRequest : notnull` — matching what MediatR's own `IPipelineBehavior<,>`
+actually requires, nothing more. Locked in by `ValidationPipelineTests`, which sends a real command
+through the real DI container rather than calling a handler directly, since that's the only way this
+class of bug shows up at all.
+
 **A demo mode that's actually useful, not just a stub.** `UseMockAi: true` doesn't return an empty
 placeholder — `MockEmbeddingService` uses the
 [hashing trick](https://en.wikipedia.org/wiki/Feature_hashing) (each word hashes into one of 768
@@ -366,6 +437,10 @@ docker-compose.yml
 
 ## API overview
 
+Every endpoint below is scoped to the caller's own data — "Authenticated" means any signed-in user
+can call it, but only ever against photos/gear/rolls/albums they themselves own (see
+[Authentication & authorization](#authentication--authorization)).
+
 | Endpoint | Purpose | Access |
 |---|---|---|
 | `POST /api/auth/register`, `POST /api/auth/login` | Create an account / exchange credentials for a JWT | Anonymous |
@@ -373,12 +448,13 @@ docker-compose.yml
 | `GET /api/photos` | Paginated, filterable listing (film roll, camera, lens, tag, rating) | Authenticated |
 | `POST /api/photos/{id}/analyze` | Runs AI vision critique, persists it, applies suggested tags | Authenticated |
 | `PUT /api/photos/{id}/rating`, `POST/DELETE /api/photos/{id}/tags` | Organize: rating, manual tags | Authenticated |
-| `GET/POST/PUT /api/gear/{camera-bodies,lenses,flashes}` | Gear Vault CRUD | Authenticated |
-| `DELETE /api/gear/{camera-bodies,lenses,flashes}/{id}` | Remove gear | **Admin** |
-| `GET/POST/PUT /api/film-rolls` | Roll lifecycle management | Authenticated |
-| `DELETE /api/film-rolls/{id}` | Remove a film roll | **Admin** |
-| `GET/POST/PUT /api/albums`, `POST/DELETE /api/albums/{id}/photos/{photoId}` | Album curation | Authenticated |
-| `DELETE /api/albums/{id}` | Remove an album | **Admin** |
+| `PUT /api/photos/{id}/rotation` | Non-destructive 90°/180°/270° rotation for scans that came in sideways | Authenticated |
+| `POST /api/photos/download-urls` | Presigned, force-download links (with a friendly filename) for a batch of photos | Authenticated |
+| `POST /api/photos/download-zip` | Bundles a batch of photos' originals into a single ZIP | Authenticated |
+| `DELETE /api/photos/{id}` | Delete a photo (and its original/preview/thumbnail in storage); supports multi-select in the UI | Authenticated |
+| `GET/POST/PUT/DELETE /api/gear/{camera-bodies,lenses,flashes}` | Gear Vault CRUD | Authenticated |
+| `GET/POST/PUT/DELETE /api/film-rolls` | Roll lifecycle management | Authenticated |
+| `GET/POST/PUT/DELETE /api/albums`, `POST/DELETE /api/albums/{id}/photos/{photoId}` | Album curation | Authenticated |
 | `POST /api/knowledge-base/documents` | Ingest an article (chunk + embed) | Authenticated |
 | `GET /api/knowledge-base/search` | Raw cosine-similarity search, no LLM | Authenticated |
 | `POST /api/knowledge-base/ask` | RAG chat: retrieval + grounded answer + citations | Authenticated |
