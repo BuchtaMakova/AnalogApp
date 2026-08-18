@@ -1,3 +1,4 @@
+import { useQueryClient } from '@tanstack/react-query'
 import { createContext, useContext, useMemo, useState, type PropsWithChildren } from 'react'
 import * as authApi from '@/api/auth'
 import { clearStoredAuth, getStoredUser, storeAuthResult } from '@/lib/authStorage'
@@ -15,19 +16,29 @@ const AuthContext = createContext<AuthContextValue | null>(null)
 
 export function AuthProvider({ children }: PropsWithChildren) {
   const [user, setUser] = useState<AuthUser | null>(() => getStoredUser())
+  const queryClient = useQueryClient()
 
   const value = useMemo<AuthContextValue>(
     () => ({
       user,
       isAuthenticated: user !== null,
-      login: async (credentials) => setUser(storeAuthResult(await authApi.login(credentials))),
-      register: async (credentials) => setUser(storeAuthResult(await authApi.register(credentials))),
+      login: async (credentials) => {
+        // Query cache is keyed without a user id, so a previous account's data would
+        // otherwise stay visible (stale-while-revalidate) until something else refetches it.
+        queryClient.clear()
+        setUser(storeAuthResult(await authApi.login(credentials)))
+      },
+      register: async (credentials) => {
+        queryClient.clear()
+        setUser(storeAuthResult(await authApi.register(credentials)))
+      },
       logout: () => {
         clearStoredAuth()
+        queryClient.clear()
         setUser(null)
       },
     }),
-    [user],
+    [user, queryClient],
   )
 
   return <AuthContext.Provider value={value}>{children}</AuthContext.Provider>
