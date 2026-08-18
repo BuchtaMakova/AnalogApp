@@ -18,6 +18,8 @@ interface FormState {
   notes: string
   acquiredOn: string
   isActive: boolean
+  isFixedFocalLength: boolean
+  focalLengthMm: string
   focalLengthMinMm: string
   focalLengthMaxMm: string
   maxAperture: string
@@ -33,6 +35,8 @@ const EMPTY_FORM: FormState = {
   notes: '',
   acquiredOn: '',
   isActive: true,
+  isFixedFocalLength: true,
+  focalLengthMm: '',
   focalLengthMinMm: '',
   focalLengthMaxMm: '',
   maxAperture: '',
@@ -40,6 +44,11 @@ const EMPTY_FORM: FormState = {
 }
 
 function toFormState(lens: Lens): FormState {
+  // A prime/fixed lens is stored as min === max — same convention the read-side label already uses.
+  const isFixedFocalLength =
+    lens.focalLengthMinMm != null &&
+    (lens.focalLengthMaxMm == null || lens.focalLengthMaxMm === lens.focalLengthMinMm)
+
   return {
     id: lens.id,
     name: lens.name,
@@ -50,6 +59,8 @@ function toFormState(lens: Lens): FormState {
     notes: lens.notes ?? '',
     acquiredOn: lens.acquiredOn ?? '',
     isActive: lens.isActive,
+    isFixedFocalLength,
+    focalLengthMm: isFixedFocalLength ? (lens.focalLengthMinMm?.toString() ?? '') : '',
     focalLengthMinMm: lens.focalLengthMinMm?.toString() ?? '',
     focalLengthMaxMm: lens.focalLengthMaxMm?.toString() ?? '',
     maxAperture: lens.maxAperture?.toString() ?? '',
@@ -72,6 +83,8 @@ export function LensSection() {
 
   const submit = () => {
     if (!form) return
+    const focalLengthMinMm = form.isFixedFocalLength ? form.focalLengthMm : form.focalLengthMinMm
+    const focalLengthMaxMm = form.isFixedFocalLength ? form.focalLengthMm : form.focalLengthMaxMm
     const payload = {
       name: form.name,
       brand: form.brand,
@@ -80,8 +93,8 @@ export function LensSection() {
       mountType: form.mountType || null,
       notes: form.notes || null,
       acquiredOn: form.acquiredOn || null,
-      focalLengthMinMm: form.focalLengthMinMm ? Number(form.focalLengthMinMm) : null,
-      focalLengthMaxMm: form.focalLengthMaxMm ? Number(form.focalLengthMaxMm) : null,
+      focalLengthMinMm: focalLengthMinMm ? Number(focalLengthMinMm) : null,
+      focalLengthMaxMm: focalLengthMaxMm ? Number(focalLengthMaxMm) : null,
       maxAperture: form.maxAperture ? Number(form.maxAperture) : null,
       minAperture: form.minAperture ? Number(form.minAperture) : null,
     }
@@ -139,22 +152,42 @@ export function LensSection() {
                 <Input value={form.model} onChange={(e) => setForm({ ...form, model: e.target.value })} required />
               </FormField>
             </div>
-            <div className="grid grid-cols-2 gap-3">
-              <FormField label="Min focal length (mm)">
+            <label className="flex items-center gap-2 text-sm text-neutral-300">
+              <input
+                type="checkbox"
+                checked={form.isFixedFocalLength}
+                onChange={(e) => setForm({ ...form, isFixedFocalLength: e.target.checked })}
+                className="accent-white"
+              />
+              Fixed focal length (prime)
+            </label>
+
+            {form.isFixedFocalLength ? (
+              <FormField label="Focal length (mm)">
                 <Input
                   type="number"
-                  value={form.focalLengthMinMm}
-                  onChange={(e) => setForm({ ...form, focalLengthMinMm: e.target.value })}
+                  value={form.focalLengthMm}
+                  onChange={(e) => setForm({ ...form, focalLengthMm: e.target.value })}
                 />
               </FormField>
-              <FormField label="Max focal length (mm)">
-                <Input
-                  type="number"
-                  value={form.focalLengthMaxMm}
-                  onChange={(e) => setForm({ ...form, focalLengthMaxMm: e.target.value })}
-                />
-              </FormField>
-            </div>
+            ) : (
+              <div className="grid grid-cols-2 gap-3">
+                <FormField label="Min focal length (mm)">
+                  <Input
+                    type="number"
+                    value={form.focalLengthMinMm}
+                    onChange={(e) => setForm({ ...form, focalLengthMinMm: e.target.value })}
+                  />
+                </FormField>
+                <FormField label="Max focal length (mm)">
+                  <Input
+                    type="number"
+                    value={form.focalLengthMaxMm}
+                    onChange={(e) => setForm({ ...form, focalLengthMaxMm: e.target.value })}
+                  />
+                </FormField>
+              </div>
+            )}
             <div className="grid grid-cols-2 gap-3">
               <FormField label="Max aperture (f/)">
                 <Input
