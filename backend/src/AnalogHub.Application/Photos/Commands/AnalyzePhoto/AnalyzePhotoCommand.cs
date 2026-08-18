@@ -12,7 +12,8 @@ namespace AnalogHub.Application.Photos.Commands.AnalyzePhoto;
 /// <summary>
 /// Runs the multimodal vision critique for a photo: composition, light/flash handling, posing (for
 /// portraits) and forward-looking recommendations, then persists the structured result and attaches
-/// AI-suggested tags. Re-running replaces the previous critique rather than appending history.
+/// AI-suggested tags. Re-running replaces the previous critique and AI-suggested tags rather than
+/// appending to them — manually-added tags are left alone either way.
 /// </summary>
 public sealed record AnalyzePhotoCommand(Guid PhotoId) : IRequest<AnalyzePhotoResult>;
 
@@ -32,17 +33,20 @@ public sealed class AnalyzePhotoCommandHandler : IRequestHandler<AnalyzePhotoCom
     private readonly IVisionAnalysisService _visionAnalysis;
     private readonly IFileStorageService _fileStorage;
     private readonly IDateTimeProvider _dateTimeProvider;
+    private readonly ICurrentUserService _currentUser;
 
     public AnalyzePhotoCommandHandler(
         IApplicationDbContext db,
         IVisionAnalysisService visionAnalysis,
         IFileStorageService fileStorage,
-        IDateTimeProvider dateTimeProvider)
+        IDateTimeProvider dateTimeProvider,
+        ICurrentUserService currentUser)
     {
         _db = db;
         _visionAnalysis = visionAnalysis;
         _fileStorage = fileStorage;
         _dateTimeProvider = dateTimeProvider;
+        _currentUser = currentUser;
     }
 
     public async Task<AnalyzePhotoResult> Handle(AnalyzePhotoCommand request, CancellationToken cancellationToken)
@@ -53,11 +57,13 @@ public sealed class AnalyzePhotoCommandHandler : IRequestHandler<AnalyzePhotoCom
             .Include(p => p.Lens)
             .Include(p => p.Critique)
             .Include(p => p.PhotoTags).ThenInclude(pt => pt.Tag)
-            .FirstOrDefaultAsync(p => p.Id == request.PhotoId, cancellationToken)
+            .FirstOrDefaultAsync(p => p.Id == request.PhotoId && p.UserId == _currentUser.UserId, cancellationToken)
             ?? throw new NotFoundException(nameof(Photo), request.PhotoId);
 
         var storageKey = photo.PreviewStorageKey ?? photo.OriginalStorageKey;
-        var imageUrl = await _fileStorage.GetPresignedDownloadUrlAsync(storageKey, ImageUrlExpiry, cancellationToken);
+        // The API fetches this URL itself to relay the image bytes to the vision model — it needs a
+        // host reachable from the API's own network, not the browser's (see forBrowser).
+        var imageUrl = await _fileStorage.GetPresignedDownloadUrlAsync(storageKey, ImageUrlExpiry, cancellationToken, forBrowser: false);
 
         var context = new VisionAnalysisContext(
             CameraModel: photo.CameraBody is null ? null : $"{photo.CameraBody.Brand} {photo.CameraBody.Model}",
@@ -106,6 +112,17 @@ public sealed class AnalyzePhotoCommandHandler : IRequestHandler<AnalyzePhotoCom
         IReadOnlyList<string> suggestedTagNames,
         CancellationToken cancellationToken)
     {
+        // Replace, don't accumulate: an earlier run's AI-suggested tags are cleared before applying
+        // the new set, mirroring the critique fields' replace semantics above. Without this, every
+        // re-run (Gemini's output isn't deterministic — see Temperature) just piled more tags on top
+        // of the old ones instead of reflecting the latest critique. Manually-added tags
+        // (IsAiSuggested == false) are untouched.
+        foreach (var stale in photo.PhotoTags.Where(pt => pt.IsAiSuggested).ToList())
+        {
+            photo.PhotoTags.Remove(stale);
+            _db.PhotoTags.Remove(stale);
+        }
+
         var applied = new List<string>();
 
         foreach (var tagName in suggestedTagNames.Distinct(StringComparer.OrdinalIgnoreCase))

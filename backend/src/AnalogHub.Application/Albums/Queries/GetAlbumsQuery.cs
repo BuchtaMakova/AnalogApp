@@ -13,17 +13,20 @@ public sealed class GetAlbumsQueryHandler : IRequestHandler<GetAlbumsQuery, IRea
 
     private readonly IApplicationDbContext _db;
     private readonly IFileStorageService _fileStorage;
+    private readonly ICurrentUserService _currentUser;
 
-    public GetAlbumsQueryHandler(IApplicationDbContext db, IFileStorageService fileStorage)
+    public GetAlbumsQueryHandler(IApplicationDbContext db, IFileStorageService fileStorage, ICurrentUserService currentUser)
     {
         _db = db;
         _fileStorage = fileStorage;
+        _currentUser = currentUser;
     }
 
     public async Task<IReadOnlyList<AlbumDto>> Handle(GetAlbumsQuery request, CancellationToken cancellationToken)
     {
         var albums = await _db.Albums
             .AsNoTracking()
+            .Where(a => a.UserId == _currentUser.UserId)
             .OrderByDescending(a => a.CreatedAtUtc)
             .Select(a => new
             {

@@ -13,8 +13,9 @@ namespace AnalogHub.Tests.Photos;
 
 public sealed class RegisterPhotoCommandHandlerTests
 {
-    private static FilmRoll CreateFilmRoll() => new()
+    private static FilmRoll CreateFilmRoll(Guid ownerId) => new()
     {
+        UserId = ownerId,
         Name = "Kodak Portra 400",
         Brand = "Kodak",
         Format = FilmFormat.ThirtyFiveMm,
@@ -27,12 +28,13 @@ public sealed class RegisterPhotoCommandHandlerTests
     public async Task Handle_ValidRequest_CreatesPhotoInUploadedStatusAndEnqueuesProcessing()
     {
         using var db = TestDbContextFactory.Create();
-        var filmRoll = CreateFilmRoll();
+        var currentUser = new FakeCurrentUserService();
+        var filmRoll = CreateFilmRoll(currentUser.UserId);
         db.FilmRolls.Add(filmRoll);
         await db.SaveChangesAsync();
 
         var jobService = new Mock<IPhotoProcessingJobService>();
-        var handler = new RegisterPhotoCommandHandler(db, jobService.Object);
+        var handler = new RegisterPhotoCommandHandler(db, jobService.Object, currentUser);
 
         var command = new RegisterPhotoCommand(
             filmRoll.Id, "photos/roll/frame.jpg", "image/jpeg", 4_200_000,
@@ -49,6 +51,7 @@ public sealed class RegisterPhotoCommandHandlerTests
         var savedPhoto = await db.Photos.FindAsync(result.Id);
         savedPhoto.Should().NotBeNull();
         savedPhoto!.ProcessingStatus.Should().Be(PhotoProcessingStatus.Uploaded);
+        savedPhoto.UserId.Should().Be(currentUser.UserId);
 
         jobService.Verify(j => j.EnqueueProcessPhoto(result.Id), Times.Once);
     }
@@ -57,11 +60,12 @@ public sealed class RegisterPhotoCommandHandlerTests
     public async Task Handle_WithExifData_MapsAllFieldsOntoThePhoto()
     {
         using var db = TestDbContextFactory.Create();
-        var filmRoll = CreateFilmRoll();
+        var currentUser = new FakeCurrentUserService();
+        var filmRoll = CreateFilmRoll(currentUser.UserId);
         db.FilmRolls.Add(filmRoll);
         await db.SaveChangesAsync();
 
-        var handler = new RegisterPhotoCommandHandler(db, Mock.Of<IPhotoProcessingJobService>());
+        var handler = new RegisterPhotoCommandHandler(db, Mock.Of<IPhotoProcessingJobService>(), currentUser);
 
         var exif = new AnalogHub.Application.Photos.Dtos.ExifDataDto(
             Aperture: "f/2.8", ShutterSpeed: "1/125", IsoUsed: 400, FocalLengthMm: 50m,
@@ -83,7 +87,7 @@ public sealed class RegisterPhotoCommandHandlerTests
     public async Task Handle_FilmRollDoesNotExist_ThrowsNotFoundException()
     {
         using var db = TestDbContextFactory.Create();
-        var handler = new RegisterPhotoCommandHandler(db, Mock.Of<IPhotoProcessingJobService>());
+        var handler = new RegisterPhotoCommandHandler(db, Mock.Of<IPhotoProcessingJobService>(), new FakeCurrentUserService());
 
         var command = new RegisterPhotoCommand(
             Guid.NewGuid(), "photos/roll/frame.jpg", "image/jpeg", 1000,
@@ -95,15 +99,36 @@ public sealed class RegisterPhotoCommandHandlerTests
     }
 
     [Fact]
+    public async Task Handle_FilmRollOwnedByAnotherUser_ThrowsNotFoundException()
+    {
+        using var db = TestDbContextFactory.Create();
+        var owner = new FakeCurrentUserService();
+        var filmRoll = CreateFilmRoll(owner.UserId);
+        db.FilmRolls.Add(filmRoll);
+        await db.SaveChangesAsync();
+
+        var handler = new RegisterPhotoCommandHandler(db, Mock.Of<IPhotoProcessingJobService>(), new FakeCurrentUserService());
+
+        var command = new RegisterPhotoCommand(
+            filmRoll.Id, "photos/roll/frame.jpg", "image/jpeg", 1000,
+            null, null, null, null, null, null);
+
+        var act = () => handler.Handle(command, CancellationToken.None);
+
+        await act.Should().ThrowAsync<NotFoundException>("a photo can't be registered against someone else's film roll");
+    }
+
+    [Fact]
     public async Task Handle_CameraBodyDoesNotExist_ThrowsNotFoundExceptionAndDoesNotEnqueueProcessing()
     {
         using var db = TestDbContextFactory.Create();
-        var filmRoll = CreateFilmRoll();
+        var currentUser = new FakeCurrentUserService();
+        var filmRoll = CreateFilmRoll(currentUser.UserId);
         db.FilmRolls.Add(filmRoll);
         await db.SaveChangesAsync();
 
         var jobService = new Mock<IPhotoProcessingJobService>();
-        var handler = new RegisterPhotoCommandHandler(db, jobService.Object);
+        var handler = new RegisterPhotoCommandHandler(db, jobService.Object, currentUser);
 
         var command = new RegisterPhotoCommand(
             filmRoll.Id, "photos/roll/frame.jpg", "image/jpeg", 1000,
@@ -119,17 +144,18 @@ public sealed class RegisterPhotoCommandHandlerTests
     public async Task Handle_ValidCameraBodyLensAndFlash_LinksAllThreeToThePhoto()
     {
         using var db = TestDbContextFactory.Create();
-        var filmRoll = CreateFilmRoll();
-        var cameraBody = new CameraBody { Name = "F100", Brand = "Nikon", Model = "F100" };
-        var lens = new Lens { Name = "50mm", Brand = "Nikon", Model = "50mm f/1.8D" };
-        var flash = new Flash { Name = "SB-28", Brand = "Nikon", Model = "SB-28" };
+        var currentUser = new FakeCurrentUserService();
+        var filmRoll = CreateFilmRoll(currentUser.UserId);
+        var cameraBody = new CameraBody { UserId = currentUser.UserId, Name = "F100", Brand = "Nikon", Model = "F100" };
+        var lens = new Lens { UserId = currentUser.UserId, Name = "50mm", Brand = "Nikon", Model = "50mm f/1.8D" };
+        var flash = new Flash { UserId = currentUser.UserId, Name = "SB-28", Brand = "Nikon", Model = "SB-28" };
         db.FilmRolls.Add(filmRoll);
         db.CameraBodies.Add(cameraBody);
         db.Lenses.Add(lens);
         db.Flashes.Add(flash);
         await db.SaveChangesAsync();
 
-        var handler = new RegisterPhotoCommandHandler(db, Mock.Of<IPhotoProcessingJobService>());
+        var handler = new RegisterPhotoCommandHandler(db, Mock.Of<IPhotoProcessingJobService>(), currentUser);
 
         var command = new RegisterPhotoCommand(
             filmRoll.Id, "photos/roll/frame.jpg", "image/jpeg", 1000,

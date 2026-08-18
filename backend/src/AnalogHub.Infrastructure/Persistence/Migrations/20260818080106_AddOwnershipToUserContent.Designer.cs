@@ -3,6 +3,7 @@ using System;
 using AnalogHub.Infrastructure.Persistence;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.EntityFrameworkCore.Infrastructure;
+using Microsoft.EntityFrameworkCore.Migrations;
 using Microsoft.EntityFrameworkCore.Storage.ValueConversion;
 using Npgsql.EntityFrameworkCore.PostgreSQL.Metadata;
 using Pgvector;
@@ -12,9 +13,11 @@ using Pgvector;
 namespace AnalogHub.Infrastructure.Persistence.Migrations
 {
     [DbContext(typeof(AnalogHubDbContext))]
-    partial class AnalogHubDbContextModelSnapshot : ModelSnapshot
+    [Migration("20260818080106_AddOwnershipToUserContent")]
+    partial class AddOwnershipToUserContent
     {
-        protected override void BuildModel(ModelBuilder modelBuilder)
+        /// <inheritdoc />
+        protected override void BuildTargetModel(ModelBuilder modelBuilder)
         {
 #pragma warning disable 612, 618
             modelBuilder
@@ -340,9 +343,6 @@ namespace AnalogHub.Infrastructure.Persistence.Migrations
                     b.Property<byte>("Rating")
                         .HasColumnType("smallint");
 
-                    b.Property<int>("RotationDegrees")
-                        .HasColumnType("integer");
-
                     b.Property<string>("ThumbnailStorageKey")
                         .HasMaxLength(500)
                         .HasColumnType("character varying(500)");
@@ -380,8 +380,6 @@ namespace AnalogHub.Infrastructure.Persistence.Migrations
                     b.ToTable("Photos", null, t =>
                         {
                             t.HasCheckConstraint("CK_Photos_Rating_Range", "\"Rating\" >= 0 AND \"Rating\" <= 5");
-
-                            t.HasCheckConstraint("CK_Photos_RotationDegrees_Valid", "\"RotationDegrees\" IN (0, 90, 180, 270)");
                         });
                 });
 

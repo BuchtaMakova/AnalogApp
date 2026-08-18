@@ -9,6 +9,9 @@ namespace AnalogHub.Domain.Entities.Gear;
 /// </summary>
 public abstract class Gear : AuditableEntity
 {
+    /// <summary>Owner of this gear — every user has their own catalogue, never a shared one.</summary>
+    public Guid UserId { get; set; }
+
     public string Name { get; set; } = default!;
     public string Brand { get; set; } = default!;
     public string Model { get; set; } = default!;

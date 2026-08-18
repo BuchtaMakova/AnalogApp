@@ -2,6 +2,7 @@ using System.Text.Json;
 using AnalogHub.Application.Common.Exceptions;
 using AnalogHub.Application.Common.Interfaces;
 using AnalogHub.Application.Photos.Dtos;
+using AnalogHub.Application.Photos;
 using AnalogHub.Application.Tags.Dtos;
 using AnalogHub.Domain.Entities;
 using MediatR;
@@ -17,11 +18,13 @@ public sealed class GetPhotoByIdQueryHandler : IRequestHandler<GetPhotoByIdQuery
 
     private readonly IApplicationDbContext _db;
     private readonly IFileStorageService _fileStorage;
+    private readonly ICurrentUserService _currentUser;
 
-    public GetPhotoByIdQueryHandler(IApplicationDbContext db, IFileStorageService fileStorage)
+    public GetPhotoByIdQueryHandler(IApplicationDbContext db, IFileStorageService fileStorage, ICurrentUserService currentUser)
     {
         _db = db;
         _fileStorage = fileStorage;
+        _currentUser = currentUser;
     }
 
     public async Task<PhotoDetailDto> Handle(GetPhotoByIdQuery request, CancellationToken cancellationToken)
@@ -35,7 +38,7 @@ public sealed class GetPhotoByIdQueryHandler : IRequestHandler<GetPhotoByIdQuery
             .Include(p => p.Critique)
             .Include(p => p.PhotoTags).ThenInclude(pt => pt.Tag)
             .Include(p => p.AlbumPhotos)
-            .FirstOrDefaultAsync(p => p.Id == request.Id, cancellationToken)
+            .FirstOrDefaultAsync(p => p.Id == request.Id && p.UserId == _currentUser.UserId, cancellationToken)
             ?? throw new NotFoundException(nameof(Photo), request.Id);
 
         var originalUrl = await _fileStorage.GetPresignedDownloadUrlAsync(photo.OriginalStorageKey, UrlExpiry, cancellationToken);
@@ -45,6 +48,9 @@ public sealed class GetPhotoByIdQueryHandler : IRequestHandler<GetPhotoByIdQuery
         var thumbnailUrl = photo.ThumbnailStorageKey is null
             ? null
             : await _fileStorage.GetPresignedDownloadUrlAsync(photo.ThumbnailStorageKey, UrlExpiry, cancellationToken);
+        var downloadFileName = PhotoFileNaming.BuildDownloadFileName(photo);
+        var downloadUrl = await _fileStorage.GetPresignedDownloadUrlAsync(
+            photo.OriginalStorageKey, UrlExpiry, cancellationToken, downloadFileName: downloadFileName);
 
         PhotoCritiqueDto? critiqueDto = null;
         if (photo.Critique is { } critique)
@@ -83,12 +89,14 @@ public sealed class GetPhotoByIdQueryHandler : IRequestHandler<GetPhotoByIdQuery
             originalUrl,
             previewUrl,
             thumbnailUrl,
+            downloadUrl,
             photo.BlurHash,
             photo.WidthPx,
             photo.HeightPx,
             photo.FileSizeBytes,
             photo.ContentType,
             photo.Rating,
+            photo.RotationDegrees,
             photo.ProcessingStatus,
             exif,
             critiqueDto,

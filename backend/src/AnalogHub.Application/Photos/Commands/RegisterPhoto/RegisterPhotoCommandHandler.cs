@@ -14,27 +14,31 @@ public sealed class RegisterPhotoCommandHandler : IRequestHandler<RegisterPhotoC
 {
     private readonly IApplicationDbContext _db;
     private readonly IPhotoProcessingJobService _processingJobs;
+    private readonly ICurrentUserService _currentUser;
 
-    public RegisterPhotoCommandHandler(IApplicationDbContext db, IPhotoProcessingJobService processingJobs)
+    public RegisterPhotoCommandHandler(IApplicationDbContext db, IPhotoProcessingJobService processingJobs, ICurrentUserService currentUser)
     {
         _db = db;
         _processingJobs = processingJobs;
+        _currentUser = currentUser;
     }
 
     public async Task<PhotoDto> Handle(RegisterPhotoCommand request, CancellationToken cancellationToken)
     {
-        var filmRollExists = await _db.FilmRolls.AnyAsync(r => r.Id == request.FilmRollId, cancellationToken);
+        var filmRollExists = await _db.FilmRolls
+            .AnyAsync(r => r.Id == request.FilmRollId && r.UserId == _currentUser.UserId, cancellationToken);
         if (!filmRollExists)
         {
             throw new NotFoundException(nameof(FilmRoll), request.FilmRollId);
         }
 
-        await EnsureGearExistsAsync(request.CameraBodyId, _db.CameraBodies, nameof(CameraBody), cancellationToken);
-        await EnsureGearExistsAsync(request.LensId, _db.Lenses, nameof(Lens), cancellationToken);
-        await EnsureGearExistsAsync(request.FlashId, _db.Flashes, nameof(Flash), cancellationToken);
+        await EnsureGearExistsAsync(request.CameraBodyId, _db.CameraBodies, nameof(CameraBody), _currentUser.UserId, cancellationToken);
+        await EnsureGearExistsAsync(request.LensId, _db.Lenses, nameof(Lens), _currentUser.UserId, cancellationToken);
+        await EnsureGearExistsAsync(request.FlashId, _db.Flashes, nameof(Flash), _currentUser.UserId, cancellationToken);
 
         var photo = new Photo
         {
+            UserId = _currentUser.UserId,
             FilmRollId = request.FilmRollId,
             CameraBodyId = request.CameraBodyId,
             LensId = request.LensId,
@@ -60,6 +64,7 @@ public sealed class RegisterPhotoCommandHandler : IRequestHandler<RegisterPhotoC
         Guid? gearId,
         DbSet<TGear> gearSet,
         string entityName,
+        Guid ownerId,
         CancellationToken cancellationToken)
         where TGear : Gear
     {
@@ -68,7 +73,7 @@ public sealed class RegisterPhotoCommandHandler : IRequestHandler<RegisterPhotoC
             return;
         }
 
-        var exists = await gearSet.AnyAsync(g => g.Id == gearId, cancellationToken);
+        var exists = await gearSet.AnyAsync(g => g.Id == gearId && g.UserId == ownerId, cancellationToken);
         if (!exists)
         {
             throw new NotFoundException(entityName, gearId);

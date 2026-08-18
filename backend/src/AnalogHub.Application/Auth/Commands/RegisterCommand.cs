@@ -24,15 +24,18 @@ public sealed class RegisterCommandHandler : IRequestHandler<RegisterCommand, Au
     private readonly IApplicationDbContext _db;
     private readonly IPasswordHasher _passwordHasher;
     private readonly IJwtTokenGenerator _jwtTokenGenerator;
+    private readonly IDemoDataSeeder _demoDataSeeder;
 
     public RegisterCommandHandler(
         IApplicationDbContext db,
         IPasswordHasher passwordHasher,
-        IJwtTokenGenerator jwtTokenGenerator)
+        IJwtTokenGenerator jwtTokenGenerator,
+        IDemoDataSeeder demoDataSeeder)
     {
         _db = db;
         _passwordHasher = passwordHasher;
         _jwtTokenGenerator = jwtTokenGenerator;
+        _demoDataSeeder = demoDataSeeder;
     }
 
     public async Task<AuthResultDto> Handle(RegisterCommand request, CancellationToken cancellationToken)
@@ -61,6 +64,11 @@ public sealed class RegisterCommandHandler : IRequestHandler<RegisterCommand, Au
 
         _db.Users.Add(user);
         await _db.SaveChangesAsync(cancellationToken);
+
+        if (isFirstUser)
+        {
+            await _demoDataSeeder.SeedForFirstUserAsync(user.Id, cancellationToken);
+        }
 
         var (token, expiresAtUtc) = _jwtTokenGenerator.GenerateToken(user);
         return new AuthResultDto(token, expiresAtUtc, user.Id, user.Email, user.Role.ToString());

@@ -41,6 +41,10 @@ public static class DependencyInjection
             var options = configuration.GetSection(S3StorageOptions.SectionName).Get<S3StorageOptions>()
                 ?? throw new InvalidOperationException("Storage configuration section is missing.");
 
+            // Process-wide SDK setting (not per-client) — safe here because only one storage
+            // provider is ever configured at a time. See S3StorageOptions.UseSignatureVersion4.
+            Amazon.AWSConfigsS3.UseSignatureVersion4 = options.UseSignatureVersion4;
+
             var config = new AmazonS3Config { ForcePathStyle = true };
             if (!string.IsNullOrWhiteSpace(options.ServiceUrl))
             {
@@ -69,6 +73,10 @@ public static class DependencyInjection
 
         services.AddSingleton<IPasswordHasher, PasswordHasher>();
         services.AddSingleton<IJwtTokenGenerator, JwtTokenGenerator>();
+
+        services.AddHttpContextAccessor();
+        services.AddScoped<ICurrentUserService, CurrentUserService>();
+        services.AddScoped<IDemoDataSeeder, Persistence.Seed.DemoDataSeeder>();
 
         services.Configure<JwtOptions>(configuration.GetSection(JwtOptions.SectionName));
         var jwtOptions = configuration.GetSection(JwtOptions.SectionName).Get<JwtOptions>()

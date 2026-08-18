@@ -21,15 +21,17 @@ public sealed class UpdatePhotoRatingCommandValidator : AbstractValidator<Update
 public sealed class UpdatePhotoRatingCommandHandler : IRequestHandler<UpdatePhotoRatingCommand>
 {
     private readonly IApplicationDbContext _db;
+    private readonly ICurrentUserService _currentUser;
 
-    public UpdatePhotoRatingCommandHandler(IApplicationDbContext db)
+    public UpdatePhotoRatingCommandHandler(IApplicationDbContext db, ICurrentUserService currentUser)
     {
         _db = db;
+        _currentUser = currentUser;
     }
 
     public async Task Handle(UpdatePhotoRatingCommand request, CancellationToken cancellationToken)
     {
-        var photo = await _db.Photos.FirstOrDefaultAsync(p => p.Id == request.PhotoId, cancellationToken)
+        var photo = await _db.Photos.FirstOrDefaultAsync(p => p.Id == request.PhotoId && p.UserId == _currentUser.UserId, cancellationToken)
             ?? throw new NotFoundException(nameof(Photo), request.PhotoId);
 
         photo.Rating = request.Rating;

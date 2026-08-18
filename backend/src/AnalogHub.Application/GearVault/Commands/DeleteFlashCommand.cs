@@ -11,15 +11,17 @@ public sealed record DeleteFlashCommand(Guid Id) : IRequest;
 public sealed class DeleteFlashCommandHandler : IRequestHandler<DeleteFlashCommand>
 {
     private readonly IApplicationDbContext _db;
+    private readonly ICurrentUserService _currentUser;
 
-    public DeleteFlashCommandHandler(IApplicationDbContext db)
+    public DeleteFlashCommandHandler(IApplicationDbContext db, ICurrentUserService currentUser)
     {
         _db = db;
+        _currentUser = currentUser;
     }
 
     public async Task Handle(DeleteFlashCommand request, CancellationToken cancellationToken)
     {
-        var flash = await _db.Flashes.FirstOrDefaultAsync(f => f.Id == request.Id, cancellationToken)
+        var flash = await _db.Flashes.FirstOrDefaultAsync(f => f.Id == request.Id && f.UserId == _currentUser.UserId, cancellationToken)
             ?? throw new NotFoundException(nameof(Flash), request.Id);
 
         _db.Flashes.Remove(flash);

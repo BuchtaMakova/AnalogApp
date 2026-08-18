@@ -37,10 +37,12 @@ public sealed class CreateFilmRollCommandValidator : AbstractValidator<CreateFil
 public sealed class CreateFilmRollCommandHandler : IRequestHandler<CreateFilmRollCommand, FilmRollDto>
 {
     private readonly IApplicationDbContext _db;
+    private readonly ICurrentUserService _currentUser;
 
-    public CreateFilmRollCommandHandler(IApplicationDbContext db)
+    public CreateFilmRollCommandHandler(IApplicationDbContext db, ICurrentUserService currentUser)
     {
         _db = db;
+        _currentUser = currentUser;
     }
 
     public async Task<FilmRollDto> Handle(CreateFilmRollCommand request, CancellationToken cancellationToken)
@@ -48,12 +50,14 @@ public sealed class CreateFilmRollCommandHandler : IRequestHandler<CreateFilmRol
         CameraBody? cameraBody = null;
         if (request.CameraBodyId is { } cameraBodyId)
         {
-            cameraBody = await _db.CameraBodies.FirstOrDefaultAsync(c => c.Id == cameraBodyId, cancellationToken)
+            cameraBody = await _db.CameraBodies
+                    .FirstOrDefaultAsync(c => c.Id == cameraBodyId && c.UserId == _currentUser.UserId, cancellationToken)
                 ?? throw new NotFoundException(nameof(CameraBody), cameraBodyId);
         }
 
         var filmRoll = new FilmRoll
         {
+            UserId = _currentUser.UserId,
             Name = request.Name,
             Brand = request.Brand,
             Format = request.Format,

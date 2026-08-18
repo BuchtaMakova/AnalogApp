@@ -3,7 +3,6 @@ using AnalogHub.Application.FilmRolls.Dtos;
 using AnalogHub.Application.FilmRolls.Queries;
 using AnalogHub.Domain.Enums;
 using MediatR;
-using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Mvc;
 
 namespace AnalogHub.Api.Controllers;
@@ -46,7 +45,6 @@ public sealed class FilmRollsController : ControllerBase
     }
 
     [HttpDelete("{id:guid}")]
-    [Authorize(Roles = "Admin")]
     [ProducesResponseType(StatusCodes.Status204NoContent)]
     public async Task<IActionResult> DeleteFilmRoll(Guid id, CancellationToken cancellationToken)
     {

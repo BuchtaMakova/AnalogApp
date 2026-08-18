@@ -37,15 +37,17 @@ public sealed class UpdateCameraBodyCommandValidator : AbstractValidator<UpdateC
 public sealed class UpdateCameraBodyCommandHandler : IRequestHandler<UpdateCameraBodyCommand, CameraBodyDto>
 {
     private readonly IApplicationDbContext _db;
+    private readonly ICurrentUserService _currentUser;
 
-    public UpdateCameraBodyCommandHandler(IApplicationDbContext db)
+    public UpdateCameraBodyCommandHandler(IApplicationDbContext db, ICurrentUserService currentUser)
     {
         _db = db;
+        _currentUser = currentUser;
     }
 
     public async Task<CameraBodyDto> Handle(UpdateCameraBodyCommand request, CancellationToken cancellationToken)
     {
-        var cameraBody = await _db.CameraBodies.FirstOrDefaultAsync(c => c.Id == request.Id, cancellationToken)
+        var cameraBody = await _db.CameraBodies.FirstOrDefaultAsync(c => c.Id == request.Id && c.UserId == _currentUser.UserId, cancellationToken)
             ?? throw new NotFoundException(nameof(CameraBody), request.Id);
 
         cameraBody.Name = request.Name;

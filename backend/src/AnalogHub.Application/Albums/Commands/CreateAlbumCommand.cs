@@ -20,15 +20,17 @@ public sealed class CreateAlbumCommandValidator : AbstractValidator<CreateAlbumC
 public sealed class CreateAlbumCommandHandler : IRequestHandler<CreateAlbumCommand, AlbumDto>
 {
     private readonly IApplicationDbContext _db;
+    private readonly ICurrentUserService _currentUser;
 
-    public CreateAlbumCommandHandler(IApplicationDbContext db)
+    public CreateAlbumCommandHandler(IApplicationDbContext db, ICurrentUserService currentUser)
     {
         _db = db;
+        _currentUser = currentUser;
     }
 
     public async Task<AlbumDto> Handle(CreateAlbumCommand request, CancellationToken cancellationToken)
     {
-        var album = new Album { Name = request.Name, Description = request.Description };
+        var album = new Album { UserId = _currentUser.UserId, Name = request.Name, Description = request.Description };
 
         _db.Albums.Add(album);
         await _db.SaveChangesAsync(cancellationToken);

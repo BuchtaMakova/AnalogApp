@@ -35,15 +35,19 @@ public sealed class CreateLensCommandHandler : IRequestHandler<CreateLensCommand
 {
     private readonly IApplicationDbContext _db;
 
-    public CreateLensCommandHandler(IApplicationDbContext db)
+    private readonly ICurrentUserService _currentUser;
+
+    public CreateLensCommandHandler(IApplicationDbContext db, ICurrentUserService currentUser)
     {
         _db = db;
+        _currentUser = currentUser;
     }
 
     public async Task<LensDto> Handle(CreateLensCommand request, CancellationToken cancellationToken)
     {
         var lens = new Domain.Entities.Gear.Lens
         {
+            UserId = _currentUser.UserId,
             Name = request.Name,
             Brand = request.Brand,
             Model = request.Model,

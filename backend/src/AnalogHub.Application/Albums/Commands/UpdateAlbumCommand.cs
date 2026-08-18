@@ -23,20 +23,22 @@ public sealed class UpdateAlbumCommandValidator : AbstractValidator<UpdateAlbumC
 public sealed class UpdateAlbumCommandHandler : IRequestHandler<UpdateAlbumCommand, AlbumDto>
 {
     private readonly IApplicationDbContext _db;
+    private readonly ICurrentUserService _currentUser;
 
-    public UpdateAlbumCommandHandler(IApplicationDbContext db)
+    public UpdateAlbumCommandHandler(IApplicationDbContext db, ICurrentUserService currentUser)
     {
         _db = db;
+        _currentUser = currentUser;
     }
 
     public async Task<AlbumDto> Handle(UpdateAlbumCommand request, CancellationToken cancellationToken)
     {
-        var album = await _db.Albums.FirstOrDefaultAsync(a => a.Id == request.Id, cancellationToken)
+        var album = await _db.Albums.FirstOrDefaultAsync(a => a.Id == request.Id && a.UserId == _currentUser.UserId, cancellationToken)
             ?? throw new NotFoundException(nameof(Album), request.Id);
 
         if (request.CoverPhotoId is { } coverPhotoId)
         {
-            var coverExists = await _db.Photos.AnyAsync(p => p.Id == coverPhotoId, cancellationToken);
+            var coverExists = await _db.Photos.AnyAsync(p => p.Id == coverPhotoId && p.UserId == _currentUser.UserId, cancellationToken);
             if (!coverExists)
             {
                 throw new NotFoundException(nameof(Domain.Entities.Photo), coverPhotoId);

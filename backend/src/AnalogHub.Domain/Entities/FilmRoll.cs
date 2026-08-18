@@ -6,6 +6,9 @@ namespace AnalogHub.Domain.Entities;
 
 public sealed class FilmRoll : AuditableEntity
 {
+    /// <summary>Owner of this roll — every user has their own, never a shared one.</summary>
+    public Guid UserId { get; set; }
+
     /// <summary>Stock name, e.g. "Kodak Portra 400".</summary>
     public string Name { get; set; } = default!;
     public string Brand { get; set; } = default!;

@@ -45,21 +45,24 @@ public sealed class UpdateFilmRollCommandValidator : AbstractValidator<UpdateFil
 public sealed class UpdateFilmRollCommandHandler : IRequestHandler<UpdateFilmRollCommand, FilmRollDto>
 {
     private readonly IApplicationDbContext _db;
+    private readonly ICurrentUserService _currentUser;
 
-    public UpdateFilmRollCommandHandler(IApplicationDbContext db)
+    public UpdateFilmRollCommandHandler(IApplicationDbContext db, ICurrentUserService currentUser)
     {
         _db = db;
+        _currentUser = currentUser;
     }
 
     public async Task<FilmRollDto> Handle(UpdateFilmRollCommand request, CancellationToken cancellationToken)
     {
-        var filmRoll = await _db.FilmRolls.FirstOrDefaultAsync(r => r.Id == request.Id, cancellationToken)
+        var filmRoll = await _db.FilmRolls.FirstOrDefaultAsync(r => r.Id == request.Id && r.UserId == _currentUser.UserId, cancellationToken)
             ?? throw new NotFoundException(nameof(FilmRoll), request.Id);
 
         CameraBody? cameraBody = null;
         if (request.CameraBodyId is { } cameraBodyId)
         {
-            cameraBody = await _db.CameraBodies.FirstOrDefaultAsync(c => c.Id == cameraBodyId, cancellationToken)
+            cameraBody = await _db.CameraBodies
+                    .FirstOrDefaultAsync(c => c.Id == cameraBodyId && c.UserId == _currentUser.UserId, cancellationToken)
                 ?? throw new NotFoundException(nameof(CameraBody), cameraBodyId);
         }
 

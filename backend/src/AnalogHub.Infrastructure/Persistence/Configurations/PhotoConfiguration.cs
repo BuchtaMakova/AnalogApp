@@ -8,7 +8,11 @@ public sealed class PhotoConfiguration : IEntityTypeConfiguration<Photo>
 {
     public void Configure(EntityTypeBuilder<Photo> builder)
     {
-        builder.ToTable("Photos", t => t.HasCheckConstraint("CK_Photos_Rating_Range", "\"Rating\" >= 0 AND \"Rating\" <= 5"));
+        builder.ToTable("Photos", t =>
+        {
+            t.HasCheckConstraint("CK_Photos_Rating_Range", "\"Rating\" >= 0 AND \"Rating\" <= 5");
+            t.HasCheckConstraint("CK_Photos_RotationDegrees_Valid", "\"RotationDegrees\" IN (0, 90, 180, 270)");
+        });
 
         builder.Property(p => p.OriginalStorageKey).HasMaxLength(500).IsRequired();
         builder.Property(p => p.PreviewStorageKey).HasMaxLength(500);
@@ -45,5 +49,8 @@ public sealed class PhotoConfiguration : IEntityTypeConfiguration<Photo>
         builder.HasIndex(p => p.FilmRollId);
         builder.HasIndex(p => p.ProcessingStatus);
         builder.HasIndex(p => p.CaptureDateUtc);
+
+        builder.HasOne<User>().WithMany().HasForeignKey(p => p.UserId).OnDelete(DeleteBehavior.Cascade);
+        builder.HasIndex(p => p.UserId);
     }
 }

@@ -31,16 +31,19 @@ public sealed class CreateCameraBodyCommandValidator : AbstractValidator<CreateC
 public sealed class CreateCameraBodyCommandHandler : IRequestHandler<CreateCameraBodyCommand, CameraBodyDto>
 {
     private readonly IApplicationDbContext _db;
+    private readonly ICurrentUserService _currentUser;
 
-    public CreateCameraBodyCommandHandler(IApplicationDbContext db)
+    public CreateCameraBodyCommandHandler(IApplicationDbContext db, ICurrentUserService currentUser)
     {
         _db = db;
+        _currentUser = currentUser;
     }
 
     public async Task<CameraBodyDto> Handle(CreateCameraBodyCommand request, CancellationToken cancellationToken)
     {
         var cameraBody = new Domain.Entities.Gear.CameraBody
         {
+            UserId = _currentUser.UserId,
             Name = request.Name,
             Brand = request.Brand,
             Model = request.Model,

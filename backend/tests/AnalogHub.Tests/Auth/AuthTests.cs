@@ -13,22 +13,23 @@ namespace AnalogHub.Tests.Auth;
 
 public sealed class AuthTests
 {
-    private static (Mock<IPasswordHasher> Hasher, Mock<IJwtTokenGenerator> Jwt) CreateMocks()
+    private static (Mock<IPasswordHasher> Hasher, Mock<IJwtTokenGenerator> Jwt, Mock<IDemoDataSeeder> Seeder) CreateMocks()
     {
         var hasher = new Mock<IPasswordHasher>();
         var jwt = new Mock<IJwtTokenGenerator>();
         jwt.Setup(j => j.GenerateToken(It.IsAny<User>()))
             .Returns(("fake-jwt-token", DateTimeOffset.UtcNow.AddHours(2)));
-        return (hasher, jwt);
+        var seeder = new Mock<IDemoDataSeeder>();
+        return (hasher, jwt, seeder);
     }
 
     [Fact]
     public async Task Register_FirstUser_BecomesAdmin()
     {
         using var db = TestDbContextFactory.Create();
-        var (hasher, jwt) = CreateMocks();
+        var (hasher, jwt, seeder) = CreateMocks();
         hasher.Setup(h => h.Hash("password123")).Returns("hashed-password123");
-        var handler = new RegisterCommandHandler(db, hasher.Object, jwt.Object);
+        var handler = new RegisterCommandHandler(db, hasher.Object, jwt.Object, seeder.Object);
 
         var result = await handler.Handle(new RegisterCommand("First@Example.com", "password123"), CancellationToken.None);
 
@@ -49,9 +50,9 @@ public sealed class AuthTests
         db.Users.Add(new User { Email = "existing@example.com", PasswordHash = "x", Role = UserRole.Admin });
         await db.SaveChangesAsync();
 
-        var (hasher, jwt) = CreateMocks();
+        var (hasher, jwt, seeder) = CreateMocks();
         hasher.Setup(h => h.Hash(It.IsAny<string>())).Returns("hashed");
-        var handler = new RegisterCommandHandler(db, hasher.Object, jwt.Object);
+        var handler = new RegisterCommandHandler(db, hasher.Object, jwt.Object, seeder.Object);
 
         var result = await handler.Handle(new RegisterCommand("second@example.com", "password123"), CancellationToken.None);
 
@@ -65,8 +66,8 @@ public sealed class AuthTests
         db.Users.Add(new User { Email = "taken@example.com", PasswordHash = "x", Role = UserRole.User });
         await db.SaveChangesAsync();
 
-        var (hasher, jwt) = CreateMocks();
-        var handler = new RegisterCommandHandler(db, hasher.Object, jwt.Object);
+        var (hasher, jwt, seeder) = CreateMocks();
+        var handler = new RegisterCommandHandler(db, hasher.Object, jwt.Object, seeder.Object);
 
         var act = () => handler.Handle(new RegisterCommand("taken@example.com", "password123"), CancellationToken.None);
 
@@ -80,7 +81,7 @@ public sealed class AuthTests
         db.Users.Add(new User { Email = "user@example.com", PasswordHash = "hashed-secret", Role = UserRole.User });
         await db.SaveChangesAsync();
 
-        var (hasher, jwt) = CreateMocks();
+        var (hasher, jwt, seeder) = CreateMocks();
         hasher.Setup(h => h.Verify("secret", "hashed-secret")).Returns(true);
         var handler = new LoginCommandHandler(db, hasher.Object, jwt.Object);
 
@@ -94,7 +95,7 @@ public sealed class AuthTests
     public async Task Login_UnknownEmail_ThrowsAuthenticationFailedException()
     {
         using var db = TestDbContextFactory.Create();
-        var (hasher, jwt) = CreateMocks();
+        var (hasher, jwt, seeder) = CreateMocks();
         var handler = new LoginCommandHandler(db, hasher.Object, jwt.Object);
 
         var act = () => handler.Handle(new LoginCommand("nobody@example.com", "secret"), CancellationToken.None);
@@ -109,7 +110,7 @@ public sealed class AuthTests
         db.Users.Add(new User { Email = "user@example.com", PasswordHash = "hashed-secret", Role = UserRole.User });
         await db.SaveChangesAsync();
 
-        var (hasher, jwt) = CreateMocks();
+        var (hasher, jwt, seeder) = CreateMocks();
         hasher.Setup(h => h.Verify("wrong", "hashed-secret")).Returns(false);
         var handler = new LoginCommandHandler(db, hasher.Object, jwt.Object);
 

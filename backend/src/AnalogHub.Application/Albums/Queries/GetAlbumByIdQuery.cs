@@ -16,16 +16,19 @@ public sealed class GetAlbumByIdQueryHandler : IRequestHandler<GetAlbumByIdQuery
 
     private readonly IApplicationDbContext _db;
     private readonly IFileStorageService _fileStorage;
+    private readonly ICurrentUserService _currentUser;
 
-    public GetAlbumByIdQueryHandler(IApplicationDbContext db, IFileStorageService fileStorage)
+    public GetAlbumByIdQueryHandler(IApplicationDbContext db, IFileStorageService fileStorage, ICurrentUserService currentUser)
     {
         _db = db;
         _fileStorage = fileStorage;
+        _currentUser = currentUser;
     }
 
     public async Task<AlbumDetailDto> Handle(GetAlbumByIdQuery request, CancellationToken cancellationToken)
     {
-        var album = await _db.Albums.AsNoTracking().FirstOrDefaultAsync(a => a.Id == request.Id, cancellationToken)
+        var album = await _db.Albums.AsNoTracking()
+                .FirstOrDefaultAsync(a => a.Id == request.Id && a.UserId == _currentUser.UserId, cancellationToken)
             ?? throw new NotFoundException(nameof(Album), request.Id);
 
         var photos = await _db.AlbumPhotos
@@ -41,6 +44,7 @@ public sealed class GetAlbumByIdQueryHandler : IRequestHandler<GetAlbumByIdQuery
                 ap.Photo.WidthPx,
                 ap.Photo.HeightPx,
                 ap.Photo.Rating,
+                ap.Photo.RotationDegrees,
                 ap.Photo.ProcessingStatus,
                 ap.Photo.CaptureDateUtc,
                 Tags = ap.Photo.PhotoTags.Select(pt => pt.Tag.Name).ToList()
@@ -56,7 +60,7 @@ public sealed class GetAlbumByIdQueryHandler : IRequestHandler<GetAlbumByIdQuery
 
             photoDtos.Add(new PhotoListItemDto(
                 photo.Id, photo.FilmRollId, thumbnailUrl, photo.BlurHash, photo.WidthPx, photo.HeightPx,
-                photo.Rating, photo.ProcessingStatus, photo.CaptureDateUtc, photo.Tags));
+                photo.Rating, photo.RotationDegrees, photo.ProcessingStatus, photo.CaptureDateUtc, photo.Tags));
         }
 
         return new AlbumDetailDto(album.Id, album.Name, album.Description, album.CoverPhotoId, album.CreatedAtUtc, photoDtos);

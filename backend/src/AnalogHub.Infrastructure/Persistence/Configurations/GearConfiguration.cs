@@ -1,3 +1,4 @@
+using AnalogHub.Domain.Entities;
 using AnalogHub.Domain.Entities.Gear;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.EntityFrameworkCore.Metadata.Builders;
@@ -28,5 +29,8 @@ public sealed class GearConfiguration : IEntityTypeConfiguration<Gear>
         builder.Property(g => g.MountType).HasMaxLength(50);
 
         builder.HasIndex(g => new { g.Brand, g.Model });
+
+        builder.HasOne<User>().WithMany().HasForeignKey(g => g.UserId).OnDelete(DeleteBehavior.Cascade);
+        builder.HasIndex(g => g.UserId);
     }
 }

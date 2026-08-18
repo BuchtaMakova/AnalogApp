@@ -15,6 +15,9 @@ namespace AnalogHub.Domain.Entities;
 /// </summary>
 public sealed class Photo : AuditableEntity
 {
+    /// <summary>Owner of this photo — every user has their own library, never a shared one.</summary>
+    public Guid UserId { get; set; }
+
     public Guid FilmRollId { get; set; }
     public FilmRoll FilmRoll { get; set; } = default!;
 
@@ -44,6 +47,9 @@ public sealed class Photo : AuditableEntity
 
     /// <summary>User rating, 0 (unrated) to 5.</summary>
     public byte Rating { get; set; }
+
+    /// <summary>Non-destructive display rotation in degrees clockwise: 0, 90, 180 or 270.</summary>
+    public int RotationDegrees { get; set; }
 
     public PhotoProcessingStatus ProcessingStatus { get; set; } = PhotoProcessingStatus.PendingUpload;
     public string? ProcessingError { get; set; }

@@ -29,16 +29,19 @@ public sealed class CreateFlashCommandValidator : AbstractValidator<CreateFlashC
 public sealed class CreateFlashCommandHandler : IRequestHandler<CreateFlashCommand, FlashDto>
 {
     private readonly IApplicationDbContext _db;
+    private readonly ICurrentUserService _currentUser;
 
-    public CreateFlashCommandHandler(IApplicationDbContext db)
+    public CreateFlashCommandHandler(IApplicationDbContext db, ICurrentUserService currentUser)
     {
         _db = db;
+        _currentUser = currentUser;
     }
 
     public async Task<FlashDto> Handle(CreateFlashCommand request, CancellationToken cancellationToken)
     {
         var flash = new Domain.Entities.Gear.Flash
         {
+            UserId = _currentUser.UserId,
             Name = request.Name,
             Brand = request.Brand,
             Model = request.Model,

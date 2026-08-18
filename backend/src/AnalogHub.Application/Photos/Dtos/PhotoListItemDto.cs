@@ -11,6 +11,7 @@ public sealed record PhotoListItemDto(
     int? WidthPx,
     int? HeightPx,
     byte Rating,
+    int RotationDegrees,
     PhotoProcessingStatus ProcessingStatus,
     DateTimeOffset? CaptureDateUtc,
     IReadOnlyList<string> Tags);
@@ -30,15 +31,20 @@ public sealed record PhotoDetailDto(
     string? OriginalUrl,
     string? PreviewUrl,
     string? ThumbnailUrl,
+    string DownloadUrl,
     string? BlurHash,
     int? WidthPx,
     int? HeightPx,
     long FileSizeBytes,
     string ContentType,
     byte Rating,
+    int RotationDegrees,
     PhotoProcessingStatus ProcessingStatus,
     ExifDataDto Exif,
     PhotoCritiqueDto? Critique,
     IReadOnlyList<PhotoTagDto> Tags,
     IReadOnlyList<Guid> AlbumIds,
     DateTimeOffset CreatedAtUtc);
+
+/// <summary>A presigned URL with a friendly Content-Disposition filename, for "download separately" bulk actions.</summary>
+public sealed record PhotoDownloadLinkDto(Guid PhotoId, string Url, string FileName);

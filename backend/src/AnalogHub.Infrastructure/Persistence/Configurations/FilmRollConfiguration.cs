@@ -22,5 +22,8 @@ public sealed class FilmRollConfiguration : IEntityTypeConfiguration<FilmRoll>
             .OnDelete(DeleteBehavior.Cascade);
 
         builder.HasIndex(r => r.Status);
+
+        builder.HasOne<User>().WithMany().HasForeignKey(r => r.UserId).OnDelete(DeleteBehavior.Cascade);
+        builder.HasIndex(r => r.UserId);
     }
 }

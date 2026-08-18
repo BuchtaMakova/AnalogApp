@@ -13,11 +13,13 @@ public sealed class RequestPhotoUploadUrlCommandHandler
 
     private readonly IApplicationDbContext _db;
     private readonly IFileStorageService _fileStorage;
+    private readonly ICurrentUserService _currentUser;
 
-    public RequestPhotoUploadUrlCommandHandler(IApplicationDbContext db, IFileStorageService fileStorage)
+    public RequestPhotoUploadUrlCommandHandler(IApplicationDbContext db, IFileStorageService fileStorage, ICurrentUserService currentUser)
     {
         _db = db;
         _fileStorage = fileStorage;
+        _currentUser = currentUser;
     }
 
     public async Task<RequestPhotoUploadUrlResult> Handle(
@@ -25,7 +27,7 @@ public sealed class RequestPhotoUploadUrlCommandHandler
         CancellationToken cancellationToken)
     {
         var filmRollExists = await _db.FilmRolls
-            .AnyAsync(r => r.Id == request.FilmRollId, cancellationToken);
+            .AnyAsync(r => r.Id == request.FilmRollId && r.UserId == _currentUser.UserId, cancellationToken);
 
         if (!filmRollExists)
         {

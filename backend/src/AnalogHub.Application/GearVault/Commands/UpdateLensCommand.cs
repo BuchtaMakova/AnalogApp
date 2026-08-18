@@ -40,15 +40,17 @@ public sealed class UpdateLensCommandValidator : AbstractValidator<UpdateLensCom
 public sealed class UpdateLensCommandHandler : IRequestHandler<UpdateLensCommand, LensDto>
 {
     private readonly IApplicationDbContext _db;
+    private readonly ICurrentUserService _currentUser;
 
-    public UpdateLensCommandHandler(IApplicationDbContext db)
+    public UpdateLensCommandHandler(IApplicationDbContext db, ICurrentUserService currentUser)
     {
         _db = db;
+        _currentUser = currentUser;
     }
 
     public async Task<LensDto> Handle(UpdateLensCommand request, CancellationToken cancellationToken)
     {
-        var lens = await _db.Lenses.FirstOrDefaultAsync(l => l.Id == request.Id, cancellationToken)
+        var lens = await _db.Lenses.FirstOrDefaultAsync(l => l.Id == request.Id && l.UserId == _currentUser.UserId, cancellationToken)
             ?? throw new NotFoundException(nameof(Lens), request.Id);
 
         lens.Name = request.Name;

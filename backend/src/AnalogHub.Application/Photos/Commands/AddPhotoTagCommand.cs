@@ -24,16 +24,18 @@ public sealed class AddPhotoTagCommandValidator : AbstractValidator<AddPhotoTagC
 public sealed class AddPhotoTagCommandHandler : IRequestHandler<AddPhotoTagCommand, PhotoTagDto>
 {
     private readonly IApplicationDbContext _db;
+    private readonly ICurrentUserService _currentUser;
 
-    public AddPhotoTagCommandHandler(IApplicationDbContext db)
+    public AddPhotoTagCommandHandler(IApplicationDbContext db, ICurrentUserService currentUser)
     {
         _db = db;
+        _currentUser = currentUser;
     }
 
     public async Task<PhotoTagDto> Handle(AddPhotoTagCommand request, CancellationToken cancellationToken)
     {
         var photo = await _db.Photos.Include(p => p.PhotoTags)
-            .FirstOrDefaultAsync(p => p.Id == request.PhotoId, cancellationToken)
+            .FirstOrDefaultAsync(p => p.Id == request.PhotoId && p.UserId == _currentUser.UserId, cancellationToken)
             ?? throw new NotFoundException(nameof(Photo), request.PhotoId);
 
         var slug = Slugify.Generate(request.TagName);

@@ -11,21 +11,23 @@ public sealed record AddPhotoToAlbumCommand(Guid AlbumId, Guid PhotoId) : IReque
 public sealed class AddPhotoToAlbumCommandHandler : IRequestHandler<AddPhotoToAlbumCommand>
 {
     private readonly IApplicationDbContext _db;
+    private readonly ICurrentUserService _currentUser;
 
-    public AddPhotoToAlbumCommandHandler(IApplicationDbContext db)
+    public AddPhotoToAlbumCommandHandler(IApplicationDbContext db, ICurrentUserService currentUser)
     {
         _db = db;
+        _currentUser = currentUser;
     }
 
     public async Task Handle(AddPhotoToAlbumCommand request, CancellationToken cancellationToken)
     {
-        var albumExists = await _db.Albums.AnyAsync(a => a.Id == request.AlbumId, cancellationToken);
+        var albumExists = await _db.Albums.AnyAsync(a => a.Id == request.AlbumId && a.UserId == _currentUser.UserId, cancellationToken);
         if (!albumExists)
         {
             throw new NotFoundException(nameof(Album), request.AlbumId);
         }
 
-        var photoExists = await _db.Photos.AnyAsync(p => p.Id == request.PhotoId, cancellationToken);
+        var photoExists = await _db.Photos.AnyAsync(p => p.Id == request.PhotoId && p.UserId == _currentUser.UserId, cancellationToken);
         if (!photoExists)
         {
             throw new NotFoundException(nameof(Domain.Entities.Photo), request.PhotoId);

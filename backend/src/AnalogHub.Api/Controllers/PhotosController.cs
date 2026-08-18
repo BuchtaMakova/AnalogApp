@@ -86,6 +86,31 @@ public sealed class PhotosController : ControllerBase
         return NoContent();
     }
 
+    /// <summary>Sets the non-destructive display rotation (0/90/180/270°) for scans that came in sideways.</summary>
+    [HttpPut("{id:guid}/rotation")]
+    [ProducesResponseType(StatusCodes.Status204NoContent)]
+    public async Task<IActionResult> UpdateRotation(Guid id, [FromBody] UpdateRotationRequest request, CancellationToken cancellationToken)
+    {
+        await _sender.Send(new UpdatePhotoRotationCommand(id, request.RotationDegrees), cancellationToken);
+        return NoContent();
+    }
+
+    /// <summary>Presigned, force-download URLs for a batch of photos — the "download separately" bulk action.</summary>
+    [HttpPost("download-urls")]
+    [ProducesResponseType(typeof(IReadOnlyList<PhotoDownloadLinkDto>), StatusCodes.Status200OK)]
+    public async Task<ActionResult<IReadOnlyList<PhotoDownloadLinkDto>>> GetDownloadUrls(
+        [FromBody] GetPhotoDownloadUrlsQuery query, CancellationToken cancellationToken)
+        => Ok(await _sender.Send(query, cancellationToken));
+
+    /// <summary>Bundles the selected photos' originals into a ZIP — the "download as ZIP" bulk action.</summary>
+    [HttpPost("download-zip")]
+    [ProducesResponseType(StatusCodes.Status200OK, Type = typeof(FileContentResult))]
+    public async Task<IActionResult> DownloadZip([FromBody] DownloadPhotosAsZipQuery query, CancellationToken cancellationToken)
+    {
+        var result = await _sender.Send(query, cancellationToken);
+        return File(result.Content, "application/zip", result.FileName);
+    }
+
     /// <summary>Attaches a tag by name (find-or-create), idempotent if already linked.</summary>
     [HttpPost("{id:guid}/tags")]
     [ProducesResponseType(typeof(PhotoTagDto), StatusCodes.Status200OK)]
@@ -100,7 +125,18 @@ public sealed class PhotosController : ControllerBase
         return NoContent();
     }
 
+    /// <summary>Deletes the photo and its original/preview/thumbnail objects from storage.</summary>
+    [HttpDelete("{id:guid}")]
+    [ProducesResponseType(StatusCodes.Status204NoContent)]
+    public async Task<IActionResult> Delete(Guid id, CancellationToken cancellationToken)
+    {
+        await _sender.Send(new DeletePhotoCommand(id), cancellationToken);
+        return NoContent();
+    }
+
     public sealed record UpdateRatingRequest(byte Rating);
+
+    public sealed record UpdateRotationRequest(int RotationDegrees);
 
     public sealed record AddTagRequest(string TagName);
 }

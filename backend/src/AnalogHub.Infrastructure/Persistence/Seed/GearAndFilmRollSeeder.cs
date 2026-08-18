@@ -6,10 +6,15 @@ using Microsoft.Extensions.Logging;
 
 namespace AnalogHub.Infrastructure.Persistence.Seed;
 
-/// <summary>Idempotent demo data: a handful of camera bodies, lenses, flashes and film rolls to make the UI feel real out of the box.</summary>
+/// <summary>
+/// Idempotent demo data: a handful of camera bodies, lenses, flashes and film rolls to make the UI
+/// feel real out of the box. Since every user has their own private library, this only ever makes
+/// sense to seed once, for the bootstrap admin (the first-ever registered user) — see
+/// RegisterCommandHandler, which calls this instead of it running unconditionally at app startup.
+/// </summary>
 internal static class GearAndFilmRollSeeder
 {
-    public static async Task SeedAsync(AnalogHubDbContext db, ILogger logger, CancellationToken cancellationToken)
+    public static async Task SeedAsync(AnalogHubDbContext db, Guid ownerId, ILogger logger, CancellationToken cancellationToken)
     {
         if (await db.CameraBodies.AnyAsync(cancellationToken))
         {
@@ -19,6 +24,7 @@ internal static class GearAndFilmRollSeeder
 
         var leicaM6 = new CameraBody
         {
+            UserId = ownerId,
             Name = "Leica M6",
             Brand = "Leica",
             Model = "M6",
@@ -29,6 +35,7 @@ internal static class GearAndFilmRollSeeder
 
         var nikonF100 = new CameraBody
         {
+            UserId = ownerId,
             Name = "Nikon F100",
             Brand = "Nikon",
             Model = "F100",
@@ -39,6 +46,7 @@ internal static class GearAndFilmRollSeeder
 
         var pentax645n = new CameraBody
         {
+            UserId = ownerId,
             Name = "Pentax 645N",
             Brand = "Pentax",
             Model = "645N",
@@ -49,6 +57,7 @@ internal static class GearAndFilmRollSeeder
 
         var summicron50 = new Lens
         {
+            UserId = ownerId,
             Name = "Summicron 50mm f/2",
             Brand = "Leica",
             Model = "Summicron-M 50mm f/2",
@@ -61,6 +70,7 @@ internal static class GearAndFilmRollSeeder
 
         var nikkor50 = new Lens
         {
+            UserId = ownerId,
             Name = "Nikkor 50mm f/1.8D",
             Brand = "Nikon",
             Model = "AF Nikkor 50mm f/1.8D",
@@ -73,6 +83,7 @@ internal static class GearAndFilmRollSeeder
 
         var pentax75 = new Lens
         {
+            UserId = ownerId,
             Name = "SMC FA 75mm f/2.8",
             Brand = "Pentax",
             Model = "SMC FA 645 75mm f/2.8",
@@ -85,6 +96,7 @@ internal static class GearAndFilmRollSeeder
 
         var sb28 = new Flash
         {
+            UserId = ownerId,
             Name = "Nikon SB-28",
             Brand = "Nikon",
             Model = "SB-28",
@@ -94,6 +106,7 @@ internal static class GearAndFilmRollSeeder
 
         var godoxV860 = new Flash
         {
+            UserId = ownerId,
             Name = "Godox V860III",
             Brand = "Godox",
             Model = "V860III",
@@ -108,6 +121,7 @@ internal static class GearAndFilmRollSeeder
         db.FilmRolls.AddRange(
             new FilmRoll
             {
+                UserId = ownerId,
                 Name = "Kodak Portra 400",
                 Brand = "Kodak",
                 Format = FilmFormat.ThirtyFiveMm,
@@ -123,6 +137,7 @@ internal static class GearAndFilmRollSeeder
             },
             new FilmRoll
             {
+                UserId = ownerId,
                 Name = "Ilford HP5 Plus (pushed to 800)",
                 Brand = "Ilford",
                 Format = FilmFormat.ThirtyFiveMm,
@@ -139,6 +154,7 @@ internal static class GearAndFilmRollSeeder
             },
             new FilmRoll
             {
+                UserId = ownerId,
                 Name = "Kodak Ektar 100",
                 Brand = "Kodak",
                 Format = FilmFormat.OneTwentyMm,
@@ -152,6 +168,6 @@ internal static class GearAndFilmRollSeeder
 
         await db.SaveChangesAsync(cancellationToken);
 
-        logger.LogInformation("Seeded 3 camera bodies, 3 lenses, 2 flashes and 3 film rolls.");
+        logger.LogInformation("Seeded 3 camera bodies, 3 lenses, 2 flashes and 3 film rolls for user {UserId}.", ownerId);
     }
 }

@@ -35,15 +35,17 @@ public sealed class UpdateFlashCommandValidator : AbstractValidator<UpdateFlashC
 public sealed class UpdateFlashCommandHandler : IRequestHandler<UpdateFlashCommand, FlashDto>
 {
     private readonly IApplicationDbContext _db;
+    private readonly ICurrentUserService _currentUser;
 
-    public UpdateFlashCommandHandler(IApplicationDbContext db)
+    public UpdateFlashCommandHandler(IApplicationDbContext db, ICurrentUserService currentUser)
     {
         _db = db;
+        _currentUser = currentUser;
     }
 
     public async Task<FlashDto> Handle(UpdateFlashCommand request, CancellationToken cancellationToken)
     {
-        var flash = await _db.Flashes.FirstOrDefaultAsync(f => f.Id == request.Id, cancellationToken)
+        var flash = await _db.Flashes.FirstOrDefaultAsync(f => f.Id == request.Id && f.UserId == _currentUser.UserId, cancellationToken)
             ?? throw new NotFoundException(nameof(Flash), request.Id);
 
         flash.Name = request.Name;

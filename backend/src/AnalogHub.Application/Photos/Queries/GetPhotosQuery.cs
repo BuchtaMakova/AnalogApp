@@ -24,11 +24,13 @@ public sealed class GetPhotosQueryHandler : IRequestHandler<GetPhotosQuery, Page
 
     private readonly IApplicationDbContext _db;
     private readonly IFileStorageService _fileStorage;
+    private readonly ICurrentUserService _currentUser;
 
-    public GetPhotosQueryHandler(IApplicationDbContext db, IFileStorageService fileStorage)
+    public GetPhotosQueryHandler(IApplicationDbContext db, IFileStorageService fileStorage, ICurrentUserService currentUser)
     {
         _db = db;
         _fileStorage = fileStorage;
+        _currentUser = currentUser;
     }
 
     public async Task<PagedResult<PhotoListItemDto>> Handle(GetPhotosQuery request, CancellationToken cancellationToken)
@@ -36,7 +38,8 @@ public sealed class GetPhotosQueryHandler : IRequestHandler<GetPhotosQuery, Page
         var page = Math.Max(1, request.Page);
         var pageSize = Math.Clamp(request.PageSize, 1, 200);
 
-        var query = _db.Photos.AsNoTracking().Where(p => p.ProcessingStatus != PhotoProcessingStatus.PendingUpload);
+        var query = _db.Photos.AsNoTracking()
+            .Where(p => p.UserId == _currentUser.UserId && p.ProcessingStatus != PhotoProcessingStatus.PendingUpload);
 
         if (request.FilmRollId is { } filmRollId) query = query.Where(p => p.FilmRollId == filmRollId);
         if (request.CameraBodyId is { } cameraBodyId) query = query.Where(p => p.CameraBodyId == cameraBodyId);
@@ -63,6 +66,7 @@ public sealed class GetPhotosQueryHandler : IRequestHandler<GetPhotosQuery, Page
                 p.WidthPx,
                 p.HeightPx,
                 p.Rating,
+                p.RotationDegrees,
                 p.ProcessingStatus,
                 p.CaptureDateUtc,
                 Tags = p.PhotoTags.Select(pt => pt.Tag.Name).ToList()
@@ -78,7 +82,7 @@ public sealed class GetPhotosQueryHandler : IRequestHandler<GetPhotosQuery, Page
 
             items.Add(new PhotoListItemDto(
                 photo.Id, photo.FilmRollId, thumbnailUrl, photo.BlurHash, photo.WidthPx, photo.HeightPx,
-                photo.Rating, photo.ProcessingStatus, photo.CaptureDateUtc, photo.Tags));
+                photo.Rating, photo.RotationDegrees, photo.ProcessingStatus, photo.CaptureDateUtc, photo.Tags));
         }
 
         return new PagedResult<PhotoListItemDto>(items, page, pageSize, totalCount);

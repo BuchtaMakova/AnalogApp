@@ -17,6 +17,9 @@ public sealed class AlbumConfiguration : IEntityTypeConfiguration<Album>
             .WithMany()
             .HasForeignKey(a => a.CoverPhotoId)
             .OnDelete(DeleteBehavior.SetNull);
+
+        builder.HasOne<User>().WithMany().HasForeignKey(a => a.UserId).OnDelete(DeleteBehavior.Cascade);
+        builder.HasIndex(a => a.UserId);
     }
 }
 
