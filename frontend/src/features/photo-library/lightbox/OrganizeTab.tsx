@@ -1,6 +1,10 @@
 import { useState } from 'react'
-import { Plus, X } from 'lucide-react'
-import { usePhotoTagMutations, useUpdatePhotoRating } from '@/features/photo-library/hooks/usePhotoDetail'
+import { Plus, Trash2, X } from 'lucide-react'
+import {
+  useDeletePhoto,
+  usePhotoTagMutations,
+  useUpdatePhotoRating,
+} from '@/features/photo-library/hooks/usePhotoDetail'
 import { useAlbumMembership, useAlbums } from '@/features/photo-library/hooks/useAlbumMembership'
 import { useMutation, useQueryClient } from '@tanstack/react-query'
 import { createAlbum } from '@/api/albums'
@@ -10,12 +14,13 @@ import { Input } from '@/components/ui/Field'
 import { Button } from '@/components/ui/Button'
 import type { PhotoDetail } from '@/types/photo'
 
-export function OrganizeTab({ photo }: { photo: PhotoDetail }) {
+export function OrganizeTab({ photo, onDeleted }: { photo: PhotoDetail; onDeleted: () => void }) {
   const updateRating = useUpdatePhotoRating(photo.id)
   const { addTag, removeTag } = usePhotoTagMutations(photo.id)
   const { addToAlbum, removeFromAlbum } = useAlbumMembership(photo.id)
   const albums = useAlbums()
   const queryClient = useQueryClient()
+  const deletePhoto = useDeletePhoto(photo.id)
 
   const [newTag, setNewTag] = useState('')
   const [newAlbumName, setNewAlbumName] = useState('')
@@ -114,6 +119,22 @@ export function OrganizeTab({ photo }: { photo: PhotoDetail }) {
             <Plus size={14} />
           </Button>
         </div>
+      </div>
+
+      <div className="border-t border-neutral-800 pt-4">
+        <h3 className="mb-2 text-xs font-semibold uppercase tracking-wide text-neutral-500">Danger zone</h3>
+        <Button
+          variant="danger"
+          onClick={() =>
+            confirm('Delete this photo? This removes the original, preview and thumbnail permanently.') &&
+            deletePhoto.mutate(undefined, { onSuccess: onDeleted })
+          }
+          disabled={deletePhoto.isPending}
+        >
+          <Trash2 size={14} />
+          Delete photo
+        </Button>
+        {deletePhoto.isError && <p className="mt-2 text-sm text-red-400">Couldn't delete this photo. Try again.</p>}
       </div>
     </div>
   )

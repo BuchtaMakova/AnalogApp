@@ -1,5 +1,5 @@
 import { useMemo, useState } from 'react'
-import { AlertTriangle, Loader2, Star } from 'lucide-react'
+import { AlertTriangle, Check, Loader2, Star } from 'lucide-react'
 import { blurHashToDataUrl } from '@/lib/blurhash'
 import { cn } from '@/lib/cn'
 import type { PhotoListItem } from '@/types/photo'
@@ -8,9 +8,12 @@ interface PhotoCardProps {
   photo: PhotoListItem
   size: number
   onClick: () => void
+  selected: boolean
+  selectionMode: boolean
+  onToggleSelect: () => void
 }
 
-export function PhotoCard({ photo, size, onClick }: PhotoCardProps) {
+export function PhotoCard({ photo, size, onClick, selected, selectionMode, onToggleSelect }: PhotoCardProps) {
   const [loaded, setLoaded] = useState(false)
   const placeholder = useMemo(
     () => (photo.blurHash ? blurHashToDataUrl(photo.blurHash) : ''),
@@ -23,10 +26,30 @@ export function PhotoCard({ photo, size, onClick }: PhotoCardProps) {
   return (
     <button
       type="button"
-      onClick={onClick}
+      onClick={selectionMode ? onToggleSelect : onClick}
       style={{ width: size, height: size }}
-      className="group relative overflow-hidden rounded-md bg-neutral-900 focus:outline-none focus-visible:ring-2 focus-visible:ring-white"
+      className={cn(
+        'group relative overflow-hidden rounded-md bg-neutral-900 focus:outline-none focus-visible:ring-2 focus-visible:ring-white',
+        selected && 'ring-2 ring-white',
+      )}
     >
+      <span
+        role="checkbox"
+        aria-checked={selected}
+        aria-label={selected ? 'Deselect photo' : 'Select photo'}
+        onClick={(e) => {
+          e.stopPropagation()
+          onToggleSelect()
+        }}
+        className={cn(
+          'absolute left-1.5 top-1.5 z-10 flex h-5 w-5 items-center justify-center rounded-full border-2 border-white/80 bg-black/40 transition-opacity',
+          selected || selectionMode ? 'opacity-100' : 'opacity-0 group-hover:opacity-100',
+          selected && 'border-white bg-white',
+        )}
+      >
+        {selected && <Check size={12} strokeWidth={3} className="text-neutral-900" />}
+      </span>
+
       {placeholder && (
         <img
           src={placeholder}
@@ -42,6 +65,7 @@ export function PhotoCard({ photo, size, onClick }: PhotoCardProps) {
           alt=""
           loading="lazy"
           onLoad={() => setLoaded(true)}
+          style={{ transform: `rotate(${photo.rotationDegrees}deg)` }}
           className={cn('absolute inset-0 h-full w-full object-cover transition-opacity duration-300', loaded ? 'opacity-100' : 'opacity-0')}
         />
       )}

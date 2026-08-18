@@ -1,5 +1,13 @@
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
-import { addPhotoTag, analyzePhoto, getPhotoById, removePhotoTag, updatePhotoRating } from '@/api/photos'
+import {
+  addPhotoTag,
+  analyzePhoto,
+  deletePhoto,
+  getPhotoById,
+  removePhotoTag,
+  updatePhotoRating,
+  updatePhotoRotation,
+} from '@/api/photos'
 
 export function usePhotoDetail(photoId: string | null) {
   return useQuery({
@@ -30,6 +38,31 @@ export function useUpdatePhotoRating(photoId: string | null) {
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ['photo', photoId] })
       queryClient.invalidateQueries({ queryKey: ['photos'] })
+    },
+  })
+}
+
+export function useUpdatePhotoRotation(photoId: string | null) {
+  const queryClient = useQueryClient()
+
+  return useMutation({
+    mutationFn: (rotationDegrees: number) => updatePhotoRotation(photoId as string, rotationDegrees),
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ['photo', photoId] })
+      queryClient.invalidateQueries({ queryKey: ['photos'] })
+    },
+  })
+}
+
+export function useDeletePhoto(photoId: string | null) {
+  const queryClient = useQueryClient()
+
+  return useMutation({
+    mutationFn: () => deletePhoto(photoId as string),
+    onSuccess: () => {
+      queryClient.removeQueries({ queryKey: ['photo', photoId] })
+      queryClient.invalidateQueries({ queryKey: ['photos'] })
+      queryClient.invalidateQueries({ queryKey: ['albums'] })
     },
   })
 }

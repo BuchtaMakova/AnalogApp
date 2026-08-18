@@ -67,6 +67,7 @@ export interface PhotoListItem {
   widthPx: number | null
   heightPx: number | null
   rating: number
+  rotationDegrees: number
   processingStatus: PhotoProcessingStatus
   captureDateUtc: string | null
   tags: string[]
@@ -119,18 +120,26 @@ export interface PhotoDetail {
   originalUrl: string | null
   previewUrl: string | null
   thumbnailUrl: string | null
+  downloadUrl: string
   blurHash: string | null
   widthPx: number | null
   heightPx: number | null
   fileSizeBytes: number
   contentType: string
   rating: number
+  rotationDegrees: number
   processingStatus: PhotoProcessingStatus
   exif: ExifData
   critique: PhotoCritique | null
   tags: PhotoTag[]
   albumIds: string[]
   createdAtUtc: string
+}
+
+export interface PhotoDownloadLink {
+  photoId: string
+  url: string
+  fileName: string
 }
 
 export interface GetPhotosFilters {

@@ -7,3 +7,10 @@
 body {
   @apply bg-neutral-950 text-neutral-100 antialiased;
 }
+
+/* Tailwind's preflight resets buttons to the browser default (an arrow, not a hand) — every
+   clickable button in the app relies on this rather than a one-off `cursor-pointer` utility. */
+button:not(:disabled),
+[role='button']:not([aria-disabled='true']) {
+  cursor: pointer;
+}

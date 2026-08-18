@@ -6,6 +6,7 @@ import type {
   PagedResult,
   Photo,
   PhotoDetail,
+  PhotoDownloadLink,
   PhotoListItem,
   PhotoTag,
   RegisterPhotoPayload,
@@ -84,6 +85,21 @@ export async function updatePhotoRating(id: string, rating: number): Promise<voi
   await apiClient.put(`/photos/${id}/rating`, { rating })
 }
 
+export async function updatePhotoRotation(id: string, rotationDegrees: number): Promise<void> {
+  await apiClient.put(`/photos/${id}/rotation`, { rotationDegrees })
+}
+
+export async function getPhotoDownloadUrls(photoIds: string[]): Promise<PhotoDownloadLink[]> {
+  const { data } = await apiClient.post<PhotoDownloadLink[]>('/photos/download-urls', { photoIds })
+  return data
+}
+
+/** Fetches the ZIP as a blob (needs the Authorization header, so a plain link/navigation won't work). */
+export async function downloadPhotosAsZip(photoIds: string[]): Promise<Blob> {
+  const { data } = await apiClient.post('/photos/download-zip', { photoIds }, { responseType: 'blob' })
+  return data
+}
+
 export async function addPhotoTag(id: string, tagName: string): Promise<PhotoTag> {
   const { data } = await apiClient.post<PhotoTag>(`/photos/${id}/tags`, { tagName })
   return data
@@ -91,4 +107,8 @@ export async function addPhotoTag(id: string, tagName: string): Promise<PhotoTag
 
 export async function removePhotoTag(id: string, tagId: string): Promise<void> {
   await apiClient.delete(`/photos/${id}/tags/${tagId}`)
+}
+
+export async function deletePhoto(id: string): Promise<void> {
+  await apiClient.delete(`/photos/${id}`)
 }
