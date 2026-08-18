@@ -34,7 +34,8 @@ public sealed class S3FileStorageService : IFileStorageService
             Expires = expiresAtUtc
         };
 
-        var url = MatchConfiguredScheme(_s3Client.GetPreSignedURL(request));
+        var url = FixScheme(_s3Client.GetPreSignedURL(request));
+        url = RewriteOrigin(url, _options.PublicServiceUrl);
 
         return Task.FromResult(new PresignedUploadResult(url, objectKey, expiresAtUtc));
     }
@@ -42,7 +43,9 @@ public sealed class S3FileStorageService : IFileStorageService
     public Task<string> GetPresignedDownloadUrlAsync(
         string objectKey,
         TimeSpan expiry,
-        CancellationToken cancellationToken)
+        CancellationToken cancellationToken,
+        bool forBrowser = true,
+        string? downloadFileName = null)
     {
         if (!string.IsNullOrWhiteSpace(_options.PublicBaseUrl))
         {
@@ -57,16 +60,28 @@ public sealed class S3FileStorageService : IFileStorageService
             Expires = DateTime.UtcNow.Add(expiry)
         };
 
-        return Task.FromResult(MatchConfiguredScheme(_s3Client.GetPreSignedURL(request)));
+        if (downloadFileName is not null)
+        {
+            request.ResponseHeaderOverrides.ContentDisposition = $"attachment; filename=\"{downloadFileName}\"";
+        }
+
+        var url = FixScheme(_s3Client.GetPreSignedURL(request));
+        if (forBrowser)
+        {
+            url = RewriteOrigin(url, _options.PublicServiceUrl);
+        }
+
+        return Task.FromResult(url);
     }
 
     /// <summary>
     /// The SDK signs presigned URLs with SigV2 for custom (non-AWS) endpoints, whose string-to-sign
     /// doesn't cover scheme or host — but it still hands back an https:// URL even when
-    /// <see cref="S3StorageOptions.ServiceUrl"/> is http:// (e.g. local MinIO without TLS). Since the
-    /// signature doesn't depend on scheme, it's safe to align it with the configured endpoint here.
+    /// <see cref="S3StorageOptions.ServiceUrl"/> is http:// (e.g. local MinIO without TLS). Applied
+    /// unconditionally: every consumer of a presigned URL, browser or the API server itself, needs
+    /// this fixed, since a bare scheme mismatch fails the TCP/TLS handshake outright.
     /// </summary>
-    private string MatchConfiguredScheme(string presignedUrl)
+    private string FixScheme(string presignedUrl)
     {
         if (_options.ServiceUrl is not { Length: > 0 } serviceUrl || !Uri.TryCreate(serviceUrl, UriKind.Absolute, out var configured))
         {
@@ -74,6 +89,31 @@ public sealed class S3FileStorageService : IFileStorageService
         }
 
         return presignedUrl.Replace($"{Uri.UriSchemeHttps}://", $"{configured.Scheme}://", StringComparison.OrdinalIgnoreCase);
+    }
+
+    /// <summary>
+    /// Swaps the presigned URL's origin (scheme+host+port) to <paramref name="targetBaseUrl"/> when
+    /// set — used to hand browser-facing URLs a host they can actually reach, when
+    /// <see cref="S3StorageOptions.ServiceUrl"/> is only reachable from the API's own network (e.g.
+    /// the Docker Compose service name <c>http://minio:9000</c>). Only the origin changes — path and
+    /// query (including the signature) are copied through untouched, safe for the same reason
+    /// <see cref="FixScheme"/> is: SigV2's string-to-sign doesn't cover scheme or host.
+    /// </summary>
+    private static string RewriteOrigin(string presignedUrl, string? targetBaseUrl)
+    {
+        if (targetBaseUrl is not { Length: > 0 } || !Uri.TryCreate(targetBaseUrl, UriKind.Absolute, out var target))
+        {
+            return presignedUrl;
+        }
+
+        if (!Uri.TryCreate(presignedUrl, UriKind.Absolute, out var presigned))
+        {
+            return presignedUrl;
+        }
+
+        var targetOrigin = $"{target.Scheme}://{target.Authority}";
+        var presignedOrigin = $"{presigned.Scheme}://{presigned.Authority}";
+        return targetOrigin + presignedUrl[presignedOrigin.Length..];
     }
 
     public async Task<Stream> DownloadAsync(string objectKey, CancellationToken cancellationToken)
@@ -97,7 +137,13 @@ public sealed class S3FileStorageService : IFileStorageService
                 Key = objectKey,
                 InputStream = content,
                 ContentType = contentType,
-                AutoCloseStream = false
+                AutoCloseStream = false,
+                // The SDK's default chunked SigV4 upload signing (a rolling signature per chunk as
+                // the request streams) is an AWS-specific extension real S3 supports but R2 doesn't —
+                // PutObject fails with "STREAMING-AWS4-HMAC-SHA256-PAYLOAD not implemented". This
+                // makes the SDK hash the whole payload upfront and sign once instead; harmless for
+                // MinIO too, and irrelevant at photo-derivative sizes.
+                UseChunkEncoding = false
             },
             cancellationToken);
     }

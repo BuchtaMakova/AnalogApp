@@ -65,21 +65,30 @@ services:
         condition: service_healthy
       minio-init:
         condition: service_completed_successfully
-    extra_hosts:
-      - "host.docker.internal:host-gateway" # no-op on Docker Desktop, required on Linux
     environment:
       ASPNETCORE_ENVIRONMENT: Production
       ASPNETCORE_URLS: http://+:8080
       ConnectionStrings__AnalogHubDb: "Host=postgres;Port=5432;Database=analoghub_db;Username=postgres;Password=postgrespassword"
-      # MinIO is reached via the host-published port, not the internal service name: presigned
-      # URLs are signed with this host, and the browser (outside the Docker network) must be able
-      # to resolve it too. See README.md "Storage networking caveat".
-      Storage__BucketName: analoghub-photos
-      Storage__Region: auto
-      Storage__ServiceUrl: "http://host.docker.internal:9000"
-      Storage__AccessKey: minioadmin
-      Storage__SecretKey: minioadmin123
-      Storage__PublicBaseUrl: ""
+      # Defaults to the local MinIO container below, so `docker compose up` needs zero config.
+      # ServiceUrl is what the API container itself uses to reach it (over the compose network —
+      # `host.docker.internal` isn't guaranteed to resolve from the host machine, so it can't be
+      # relied on there either). PublicServiceUrl is substituted into presigned URLs handed back to
+      # the browser, which can only reach MinIO via its host-published port. See
+      # S3FileStorageService.RewriteForBrowser.
+      #
+      # To use a real bucket (Cloudflare R2, AWS S3) instead, set STORAGE_SERVICE_URL,
+      # STORAGE_ACCESS_KEY, STORAGE_SECRET_KEY, STORAGE_BUCKET_NAME and STORAGE_USE_SIGV4=true as
+      # environment variables before `docker compose up`, and STORAGE_PUBLIC_SERVICE_URL to an empty
+      # string ("") — R2/S3's endpoint is already reachable from both the API and the browser, so no
+      # rewrite is needed there. See README "Connecting real object storage".
+      Storage__BucketName: ${STORAGE_BUCKET_NAME:-analoghub-photos}
+      Storage__Region: ${STORAGE_REGION:-auto}
+      Storage__ServiceUrl: ${STORAGE_SERVICE_URL:-http://minio:9000}
+      Storage__PublicServiceUrl: ${STORAGE_PUBLIC_SERVICE_URL-http://localhost:9000}
+      Storage__AccessKey: ${STORAGE_ACCESS_KEY:-minioadmin}
+      Storage__SecretKey: ${STORAGE_SECRET_KEY:-minioadmin123}
+      Storage__PublicBaseUrl: ${STORAGE_PUBLIC_BASE_URL:-}
+      Storage__UseSignatureVersion4: ${STORAGE_USE_SIGV4:-false}
       # Demo mode by default — zero-config AI on a fresh clone, no API key needed. Set
       # USE_MOCK_AI=false and GEMINI_API_KEY=... for real Gemini vision critique / RAG chat.
       UseMockAi: ${USE_MOCK_AI:-true}
